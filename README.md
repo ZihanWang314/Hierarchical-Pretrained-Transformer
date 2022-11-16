@@ -1,3 +1,3 @@
 # Hierarchical-Pretrained-Transformer
 
-This is the implementation for our paper: [Hierarchical Pretrained Transformer](https://www.google.com)
+This is the implementation for our paper: [Hierarchical Pretrained Transformer](https://zihanwang314.github.io) (paper currently unavailable)
