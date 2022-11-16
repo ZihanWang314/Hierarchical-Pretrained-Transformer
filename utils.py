@@ -180,3 +180,39 @@ def input_to_batch(inputs, batch_size = 4, distributed = False):
         sampler = torch.utils.data.distributed.DistributedSampler(inputs)
         batches = torch.utils.data.DataLoader(inputs, batch_size=batch_size, shuffle = (sampler is None), sampler=sampler, pin_memory=True)
     return batches
+
+
+class ReIndexer:
+    def __init__(self):
+        '''
+        a class to make re-index in tensor easier
+        code example:
+            from utils import ReIndexer
+            indexer = ReIndexer()
+            hiddens = torch.arange(40).reshape(2, 10, 2)
+            mask = torch.rand(2, 10) > 0.8
+            mask = mask.float()
+            indexer.set_index(mask)
+            new_hiddens, new_mask = indexer.re_index(hiddens)
+        '''
+        self.index = None
+        self.mask = None
+        self.mask_r = None
+
+    def set_index(self, mask: torch.FloatTensor):
+        mask = mask.float()
+        sign = torch.ones_like(mask).cumsum(-1).flip(-1)
+        sign = torch.where(mask.bool(), sign, 0)
+        _, index = sign.sort(-1, descending = True)
+        self.index = index
+        self.mask = mask.detach().cpu()
+        self.mask_r, _ = self.mask.sort(-1, descending = True)
+
+    def re_index(self, tensor):
+        if tensor.dim() > self.index.dim():
+            index = self.index.unsqueeze(-1).repeat(1,1,tensor.shape[2])
+        else:
+            index = self.index
+        sorted_tensor = torch.gather(tensor, 1, index)
+        return sorted_tensor
+

@@ -11,7 +11,7 @@ import os
 from random import shuffle
 from evaluate import evaluate
 import argparse
-from utils import Logger, input_to_batch, Tokenizer
+from utils import Logger, input_to_batch, Tokenizer, ReIndexer
 os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3'
 
 parser = argparse.ArgumentParser()
@@ -23,11 +23,26 @@ parser.add_argument('--epoch', type=int)
 parser.add_argument('--data_root', type=str)
 parser.add_argument('--model_root', type=str)
 
+#model argument
+parser.add_argument('--train_condition', action='store_true')
+parser.add_argument('--contrastive_learning', action='store_true')
 
 args = parser.parse_args()
 
 logger = Logger(args.logdir)
 
+class ConditionCalculator(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.projector = nn.Linear(768, 768)
+        self.activation = nn.ReLU()
+
+    def forward(self, hidden_states):
+        hidden_states_t = self.projector(hidden_states)
+        hidden_states_t = self.activation(hidden_states_t)
+        scores = torch.einsum('bqh,bch->bqc', hidden_states, hidden_states_t)
+        scores = torch.sigmoid(scores)
+        return scores
 
 class HPTEncoder(nn.Module):
     def __init__(self, config):
@@ -39,6 +54,8 @@ class HPTEncoder(nn.Module):
         self.condition_weight = 0.2
         self.ans_probe = nn.Sequential(nn.Linear(768, 3), nn.Sigmoid())
         self.span_probe = nn.Sequential(nn.Linear(768, 2), nn.Sigmoid())
+        self.condition_calculator = ConditionCalculator()
+
 
     def weighted_loss(self, input, target):
         """
@@ -52,11 +69,13 @@ class HPTEncoder(nn.Module):
 
     def forward(self, data, autocast = True):
         input_ids = data[0] # [[101, 1, ..]]
-        global_masks = data[1] # [[1, 0, 1, 0, 1, 1, 1]]
-        attn_masks = data[2] # [[1, 1, 1, 0, 1, 1, 1]]
-        mask_HTMLelements = data[3] # [[..., 1, 0, 1, 0, 0]]
+        global_masks = data[1].float() # [[1, 0, 1, 0, 1, 1, 1]]
+        attn_masks = data[2].float() # [[1, 1, 1, 0, 1, 1, 1]]
+        mask_HTMLelements = data[3].float() # [[..., 1, 0, 1, 0, 0]]
         mask_label_HTMLelements = data[4] # [[..., -1, 0, 1, 0, 0]]
         mask_answer_span = data[5] # [[0, 0, 1, 0], [0, 0, 0, 1]]
+        mask_label_condition = data[7].float()
+
         attn_masks, input_ids, global_masks, mask_HTMLelements, mask_label_HTMLelements, mask_answer_span = \
             dynamic_padding(attn_masks, input_ids, global_masks, mask_HTMLelements, mask_label_HTMLelements, mask_answer_span)
         if autocast == True:
@@ -73,7 +92,25 @@ class HPTEncoder(nn.Module):
         label_span = (mask_answer_span[mask_answer_span != 0] + 1) / 2
         loss_span = self.weighted_loss(pred_span, label_span)
 
-        return self.ans_weight * loss_extractive + self.span_weight * loss_span
+        indexer = ReIndexer()
+        indexer.set_index(mask_HTMLelements)
+        max_HTML_num = indexer.mask_r.count_nonzero(-1).max()
+        mask_r = indexer.mask_r[:, :max_HTML_num]
+        last_hidden_r = indexer.re_index(last_hidden)[:, :max_HTML_num] # B * HTML * H
+        pred_condition = self.condition_calculator(last_hidden_r)
+        #B * HTML * ANS_NUM * (ANS? COND?)
+        ans_indicator = mask_label_condition[..., 0]
+        cond_indicator = mask_label_condition[..., 1]
+        ans_indicator = indexer.re_index(ans_indicator)[:, :max_HTML_num].transpose(-2, -1)
+        cond_indicator = indexer.re_index(cond_indicator)[:, :max_HTML_num].transpose(-2, -1)
+        cond_indicator = cond_indicator.unsqueeze(2).repeat(1, 1, max_HTML_num, 1)# 1, 2, 3, 3
+        label_condition = torch.einsum('abcd,abc->acd',cond_indicator, ans_indicator)
+        mask_r = torch.einsum('ab,ac->abc', mask_r, mask_r)
+        pred_condition = pred_condition[mask_r!=0]
+        label_condition = label_condition[mask_r!=0]
+        loss_condition = self.weighted_loss(pred_condition, label_condition)
+        
+        return self.ans_weight * loss_extractive + self.span_weight * loss_span + self.condition_weight * loss_condition
 
 
 class HPTModel(nn.Module):
@@ -144,17 +181,20 @@ class HPTModel(nn.Module):
         logger.log('evaluating.')
         self.activate_inference_mode()
 
-        preds = {'extractive': [], 'yes': [], 'no': []}
-        labels = {'extractive': [], 'yes': [], 'no': []}
+        preds = {'extractive': [], 'yes': [], 'no': [], 'condition': []}
+        labels = {'extractive': [], 'yes': [], 'no': [], 'condition': []}
         with torch.no_grad():
             with torch.cuda.amp.autocast():
                 for data in tqdm(dev_inputs, total = len(dev_inputs)):
                     input_ids = data[0]
-                    global_masks = data[1]
-                    attn_masks = data[2]
-                    mask_HTMLelements = data[3]
+                    global_masks = data[1].float()
+                    attn_masks = data[2].float()
+                    mask_HTMLelements = data[3].float()
                     mask_label_HTMLelements = data[4]
                     mask_answer_span = data[5]
+                    mask_label_condition = data[7].float()
+
+
                     attn_masks, input_ids, global_masks, mask_HTMLelements, mask_label_HTMLelements, mask_answer_span = \
                         dynamic_padding(attn_masks, input_ids, global_masks, mask_HTMLelements, mask_label_HTMLelements, mask_answer_span)
                     last_hidden = self.encoder.transformer(input_ids, global_attention_mask = global_masks, attention_mask = attn_masks).last_hidden_state
@@ -177,10 +217,29 @@ class HPTModel(nn.Module):
                     labels['no'] += label
                     preds['no'] += pred
                         
+                    indexer = ReIndexer()
+                    indexer.set_index(mask_HTMLelements)
+                    max_HTML_num = indexer.mask_r.count_nonzero(-1).max()
+                    mask_r = indexer.mask_r[:, :max_HTML_num]
+                    last_hidden_r = indexer.re_index(last_hidden)[:, :max_HTML_num] # B * HTML * H
+                    pred_condition = self.encoder.condition_calculator(last_hidden_r)
+                    ans_indicator = mask_label_condition[..., 0]
+                    cond_indicator = mask_label_condition[..., 1]
+                    ans_indicator = indexer.re_index(ans_indicator)[:, :max_HTML_num].transpose(-2, -1)
+                    cond_indicator = indexer.re_index(cond_indicator)[:, :max_HTML_num].transpose(-2, -1)
+                    cond_indicator = cond_indicator.unsqueeze(2).repeat(1, 1, max_HTML_num, 1)# 1, 2, 3, 3
+                    label_condition = torch.einsum('abcd,abc->acd',cond_indicator, ans_indicator)
+                    mask_r = torch.einsum('ab,ac->abc', mask_r, mask_r)
+                    pred_condition = pred_condition[mask_r!=0].tolist()
+                    label_condition = label_condition[mask_r!=0].tolist()
+                    labels['condition'] += label_condition
+                    preds['condition'] += pred_condition
+                    
+
 
         thresholds = []
-        for idx, name in enumerate(['extractive', 'yes', 'no']):
-            metric, threshold = analyze_binary_classification(labels[name], preds[name])
+        for name in ['extractive', 'yes', 'no', 'condition']:
+            _, threshold = analyze_binary_classification(labels[name], preds[name])
             thresholds.append(threshold)
 
         return thresholds
@@ -192,15 +251,15 @@ class HPTModel(nn.Module):
         self.activate_inference_mode()
 
         softmax_layer = torch.nn.Softmax(dim = -1)
-        thre_ans, thre_yes, thre_no = self.test(dev_inputs)
+        thre_ans, thre_yes, thre_no, thre_condition = self.test(dev_inputs)
         output = {}
         with torch.no_grad():
             with torch.cuda.amp.autocast():
                 for data in tqdm(test_inputs, total = len(test_inputs)):
                     input_ids = data[0]
-                    global_masks = data[1]
-                    attn_masks = data[2]
-                    mask_HTMLelements = data[3]
+                    global_masks = data[1].float()
+                    attn_masks = data[2].float()
+                    mask_HTMLelements = data[3].float()
                     mask_label_HTMLelements = data[4]
                     mask_answer_span = data[5]
                     attn_masks, input_ids, global_masks, mask_HTMLelements, mask_label_HTMLelements, mask_answer_span = \
@@ -224,37 +283,55 @@ class HPTModel(nn.Module):
                         pred_HTMLelements = self.encoder.ans_probe(pred_HTMLelements)
                         pred_answer_sentence_span = range_answer_span[pred_HTMLelements[:, 0] > thre_ans, :]
                         prob_pred_answers = pred_HTMLelements[pred_HTMLelements[:, 0] > thre_ans]
+
+                        indexer = ReIndexer()
+                        indexer.set_index(mask_HTMLelements[sample_index:sample_index+1])
+                        HTML_num = indexer.mask_r.count_nonzero()
+                        last_hidden_r = indexer.re_index(last_hidden)[:, :HTML_num] # 1 * HTML * H
+                        pred_condition = self.encoder.condition_calculator(last_hidden_r)[0] # HTML * HTML
+                        pred_condition = (pred_condition > thre_condition)
+
                         for index_answer, range_ in enumerate(pred_answer_sentence_span):
                             pred_answer_span = softmax_layer(self.encoder.span_probe(last_hidden[range_[0]: range_[1] + 1, :]).T)
                             index_pred_answer_start = torch.argmax(pred_answer_span[0])
                             index_pred_answer_end = torch.argmax(pred_answer_span[1])
                             prob = prob_pred_answers[index_answer, 0]
                             pred_answer = tokenizer.decode(text_ids[index_pred_answer_start + range_[0]: index_pred_answer_end + range_[0] + 1])
+
+                            answer_sentence_index = (indexer.index[0] == range_[0]).nonzero()[0][0]
+                            pred_condition_index = pred_condition[answer_sentence_index]
+                            pred_condition_start_end = range_answer_span[pred_condition_index]
+                            pred_conditions = []
+                            for start, end in pred_condition_start_end:
+                                pred_conditions.append(tokenizer.decode(text_ids[start: end + 1]))
+
+
                             if pred_answer != '':
                                 if id_example in output:
-                                    output[id_example].append([pred_answer, prob])
+                                    output[id_example].append([[pred_answer, pred_conditions], prob])
                                 else:
-                                    output.update({id_example:[[pred_answer, prob]]})
+                                    output.update({id_example:[[[pred_answer, pred_conditions], prob]]})
+
 
                         pred_yes = pred_HTMLelements[:, 1].max()
                         pred_no = pred_HTMLelements[:, 2].max()
                         if pred_yes > thre_yes:
                             if id_example in output:
-                                output[id_example].append(['yes', pred_yes])
+                                output[id_example].append([['yes', []], pred_yes])
                             else:
-                                output.update({id_example:[['yes', pred_yes]]})
+                                output.update({id_example:[[['yes', []], pred_yes]]})
                         if pred_no > thre_no:
                             if id_example in output:
-                                output[id_example].append(['no', pred_no])
+                                output[id_example].append([['no', []], pred_no])
                             else:
-                                output.update({id_example:[['no', pred_no]]})
+                                output.update({id_example:[[['no', []], pred_no]]})
 
 
             output_real = []
             def answers_to_list(answers):
                 answers.sort(key = lambda x:x[1], reverse = True)
-                answers = {x[0] for x in answers[:5]}
-                return [[i,[]] for i in answers]
+                answers = [x[0] for x in answers[:5]]
+                return answers
                 
             for k, v in output.items():
                 output_real.append({'id':'dev-'+str(k), 'answers':answers_to_list(v)})
@@ -307,7 +384,7 @@ if __name__ == '__main__':
         torch.distributed.init_process_group(backend="nccl")
         shuffle(train_inputs)
         train_inputs = input_to_batch(train_inputs, batch_size = 1, distributed = True)
-        config = {}
+        config = args
         model = HPTModel(config)
         if start > 0:
             model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
@@ -322,7 +399,7 @@ if __name__ == '__main__':
         dev_inputs = [[j.cuda() for j in i] for i in dev_inputs] 
         train_inputs = input_to_batch(train_inputs, batch_size = 18, distributed = False)
         dev_inputs = input_to_batch(dev_inputs, batch_size = 6, distributed = False)
-        config = {}
+        config = args
         model = HPTModel(config)
         model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
 

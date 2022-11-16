@@ -2018,3 +2018,41 @@ training.
 training. 
 training. 
 training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+epoch_1 
+evaluating. 
+f1_score:0.0193, auc:0.5388, threshold for best_f1:0.3594, prec:0.0098, recall:0.8498
+ 
+f1_score:0.0339, auc:0.6202, threshold for best_f1:0.6548, prec:0.0221, recall:0.0733
+ 
+f1_score:0.0125, auc:0.6611, threshold for best_f1:0.4573, prec:0.0066, recall:0.1273
+ 
+metric: {'total': {'EM': 0.011444149598977795, 'EM_with_conditions': 0.006695766330438666, 'F1': 0.021238393239184142, 'F1_with_conditions': 0.014184316122936753}, 'yesno': {'EM': 0.019829027737031473, 'EM_with_conditions': 0.010365466677355587, 'F1': 0.019829027737031473, 'F1_with_conditions': 0.010365466677355587}, 'extractive': {'EM': 0.003328372416509147, 'EM_with_conditions': 0.003328372416509147, 'F1': 0.025135868021656124, 'F1_with_conditions': 0.020002096563868168}, 'conditional': {'EM': 0.028113009324602086, 'EM_with_conditions': 0.0066322278716870004, 'F1': 0.04683866186576219, 'F1_with_conditions': 0.014927360625595373}} 
+total: 0.0327
+ 
+metric: 0.03268254283816194 
