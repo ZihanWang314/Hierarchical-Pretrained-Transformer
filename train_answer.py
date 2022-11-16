@@ -34,8 +34,9 @@ class HPTEncoder(nn.Module):
         super().__init__()
         self.transformer = LongformerModel.from_pretrained('allenai/longformer-base-4096')
         self.transformer.resize_token_embeddings(50282)
-        self.ans_weight = 0.7
-        self.span_weight = 0.3
+        self.ans_weight = 0.6
+        self.span_weight = 0.2
+        self.condition_weight = 0.2
         self.ans_probe = nn.Sequential(nn.Linear(768, 3), nn.Sigmoid())
         self.span_probe = nn.Sequential(nn.Linear(768, 2), nn.Sigmoid())
 
@@ -50,12 +51,12 @@ class HPTEncoder(nn.Module):
         return loss_fn(input, target)
 
     def forward(self, data, autocast = True):
-        input_ids = data[0]
-        global_masks = data[1]
-        attn_masks = data[2]
-        mask_HTMLelements = data[3]
-        mask_label_HTMLelements = data[4]
-        mask_answer_span = data[5]
+        input_ids = data[0] # [[101, 1, ..]]
+        global_masks = data[1] # [[1, 0, 1, 0, 1, 1, 1]]
+        attn_masks = data[2] # [[1, 1, 1, 0, 1, 1, 1]]
+        mask_HTMLelements = data[3] # [[..., 1, 0, 1, 0, 0]]
+        mask_label_HTMLelements = data[4] # [[..., -1, 0, 1, 0, 0]]
+        mask_answer_span = data[5] # [[0, 0, 1, 0], [0, 0, 0, 1]]
         attn_masks, input_ids, global_masks, mask_HTMLelements, mask_label_HTMLelements, mask_answer_span = \
             dynamic_padding(attn_masks, input_ids, global_masks, mask_HTMLelements, mask_label_HTMLelements, mask_answer_span)
         if autocast == True:
@@ -218,7 +219,7 @@ class HPTModel(nn.Module):
                             index_HTMLelements.reshape(-1,1), 
                             torch.concat([index_HTMLelements[1:], index_end]).reshape(-1,1) - 1
                         ], dim = 1)
-                        id_example = data[-1][sample_index].tolist()
+                        id_example = data[6][sample_index].tolist()
                         pred_HTMLelements = last_hidden[index_HTMLelements]
                         pred_HTMLelements = self.encoder.ans_probe(pred_HTMLelements)
                         pred_answer_sentence_span = range_answer_span[pred_HTMLelements[:, 0] > thre_ans, :]
@@ -299,7 +300,6 @@ if __name__ == '__main__':
     # torch.save(train_inputs, 'data/train_inputs')
     # torch.save(dev_inputs, 'data/dev_inputs')
     start = args.epoch
-
     if args.mode == 'train':
         train_inputs = torch.load(os.path.join(args.data_root, 'train_inputs'))
         train_inputs = train_inputs[: len(train_inputs) // 10 * 8]
@@ -324,14 +324,20 @@ if __name__ == '__main__':
         dev_inputs = input_to_batch(dev_inputs, batch_size = 6, distributed = False)
         config = {}
         model = HPTModel(config)
-        if start > 0:
-            model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
+        model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
 
-        logger.log(f'epoch_{start}')
+        logger.log(f'epoch_{start + 1}')
         metric = model.answering_questions(train_inputs, dev_inputs, tokenizer)
         logger.log('metric: ' + str(metric))
-        if metric > 0.1:
+        try:
+            with open(os.path.join(args.model_root, 'result.txt'), 'r') as file:
+                best_performance = float(file.readlines()[0])
+        except:
+            best_performance = 0
+        if metric > best_performance:
             model.activate_normal_mode()
             torch.save(model.state_dict(), os.path.join(args.model_root, 'model_best.pt'))
             logger.log('achieving best result, now saving to model_best.pt')
+            with open(os.path.join(args.model_root, 'result.txt'), 'w') as file:
+                file.write(str(metric))
 

@@ -1504,3 +1504,484 @@ metric: {'total': {'EM': 0.03841408825438394, 'EM_with_conditions': 0.0279705045
 total: 0.0885
  
 metric: 0.08845580279746004 
+epoch_1 
+evaluating. 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.0166, auc:0.4816, threshold for best_f1:0.5215, prec:0.0084, recall:1.0000
+ 
+f1_score:0.0259, auc:0.4984, threshold for best_f1:0.4739, prec:0.0148, recall:0.1026
+ 
+f1_score:0.0058, auc:0.4269, threshold for best_f1:0.4226, prec:0.0029, recall:0.9697
+ 
+metric: {'total': {'EM': 0.0012031458021738051, 'EM_with_conditions': 0.0012031458021738051, 'F1': 0.009963873866714252, 'F1_with_conditions': 0.00936832405781371}, 'yesno': {'EM': 0.0, 'EM_with_conditions': 0.0, 'F1': 3.0136797842425635e-05, 'F1_with_conditions': 3.0136797842425635e-05}, 'extractive': {'EM': 0.002678879325152613, 'EM_with_conditions': 0.002678879325152613, 'F1': 0.02215151945251637, 'F1_with_conditions': 0.020825490581136252}, 'conditional': {'EM': 0.0030904792979024004, 'EM_with_conditions': 0.0030904792979024004, 'F1': 0.016383191444290065, 'F1_with_conditions': 0.013689037546882839}} 
+total: 0.0112
+ 
+metric: 0.011167019668888058 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.0174, auc:0.4931, threshold for best_f1:0.5488, prec:0.0089, recall:0.4280
+ 
+f1_score:0.0141, auc:0.4644, threshold for best_f1:0.4436, prec:0.0072, recall:0.3021
+ 
+f1_score:0.0086, auc:0.4489, threshold for best_f1:0.3601, prec:0.0044, recall:0.1455
+ 
+metric: {'total': {'EM': 0.07570125066404548, 'EM_with_conditions': 0.07286153216311461, 'F1': 0.07675963907210488, 'F1_with_conditions': 0.07377289822334379}, 'yesno': {'EM': 0.06629957727063067, 'EM_with_conditions': 0.06065985661143927, 'F1': 0.06629957727063067, 'F1_with_conditions': 0.06065985661143927}, 'extractive': {'EM': 0.00014421762904515102, 'EM_with_conditions': 0.00014421762904515102, 'F1': 0.0025110074549416833, 'F1_with_conditions': 0.002182233070817488}, 'conditional': {'EM': 0.02555151403366172, 'EM_with_conditions': 0.012750243331052647, 'F1': 0.028485448380732657, 'F1_with_conditions': 0.015021410268857347}} 
+total: 0.1525
+ 
+metric: 0.15246088973615035 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.0178, auc:0.5095, threshold for best_f1:0.5161, prec:0.0100, recall:0.0782
+ 
+f1_score:0.0178, auc:0.4065, threshold for best_f1:0.4873, prec:0.0112, recall:0.0440
+ 
+f1_score:0.0072, auc:0.5231, threshold for best_f1:0.2876, prec:0.0036, recall:0.3455
+ 
+metric: {'total': {'EM': 0.0934712307668899, 'EM_with_conditions': 0.08180528096635269, 'F1': 0.0939801099490168, 'F1_with_conditions': 0.08231416014847959}, 'yesno': {'EM': 0.1581887072005237, 'EM_with_conditions': 0.1349383876679845, 'F1': 0.1581887072005237, 'F1_with_conditions': 0.1349383876679845}, 'extractive': {'EM': 0.00014309092881823577, 'EM_with_conditions': 0.00014309092881823577, 'F1': 0.001276142232772654, 'F1_with_conditions': 0.001276142232772654}, 'conditional': {'EM': 0.06552477814300671, 'EM_with_conditions': 0.012750243331052647, 'F1': 0.06552477814300671, 'F1_with_conditions': 0.012750243331052647}} 
+total: 0.1875
+ 
+metric: 0.1874513407159067 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.0344, auc:0.7352, threshold for best_f1:0.7280, prec:0.0191, recall:0.1749
+ 
+f1_score:0.0268, auc:0.7670, threshold for best_f1:0.6509, prec:0.0137, recall:0.7478
+ 
+f1_score:0.0132, auc:0.7559, threshold for best_f1:0.3123, prec:0.0066, recall:0.8727
+ 
+metric: {'total': {'EM': 0.19317871764544997, 'EM_with_conditions': 0.14024402844958442, 'F1': 0.20133213789999524, 'F1_with_conditions': 0.14664757702955825}, 'yesno': {'EM': 0.3665243970813857, 'EM_with_conditions': 0.2637482710024628, 'F1': 0.3665243970813857, 'F1_with_conditions': 0.2637482710024628}, 'extractive': {'EM': 0.012835513643086782, 'EM_with_conditions': 0.009793323084214108, 'F1': 0.030989613428597688, 'F1_with_conditions': 0.024051224219311954}, 'conditional': {'EM': 0.27438708604478995, 'EM_with_conditions': 0.03492063492063492, 'F1': 0.28743651502371514, 'F1_with_conditions': 0.040053977752689054}} 
+total: 0.3945
+ 
+metric: 0.3945108555454452 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.0299, auc:0.7074, threshold for best_f1:0.7188, prec:0.0154, recall:0.5000
+ 
+f1_score:0.0255, auc:0.7486, threshold for best_f1:0.6187, prec:0.0129, recall:0.9824
+ 
+f1_score:0.0158, auc:0.7782, threshold for best_f1:0.4502, prec:0.0087, recall:0.0909
+ 
+metric: {'total': {'EM': 0.32007851219832223, 'EM_with_conditions': 0.22568561099552759, 'F1': 0.3265422264356502, 'F1_with_conditions': 0.23124591016491866}, 'yesno': {'EM': 0.6244798905790233, 'EM_with_conditions': 0.4377157182221798, 'F1': 0.6244798905790233, 'F1_with_conditions': 0.4377157182221798}, 'extractive': {'EM': 0.0072011845603242326, 'EM_with_conditions': 0.005680089280887895, 'F1': 0.021593048291874993, 'F1_with_conditions': 0.01806044290023528}, 'conditional': {'EM': 0.46669804512375407, 'EM_with_conditions': 0.03968253968253968, 'F1': 0.47560473529689545, 'F1_with_conditions': 0.04450235216739482}} 
+total: 0.6466
+ 
+metric: 0.6466207386339724 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.0302, auc:0.7084, threshold for best_f1:0.7007, prec:0.0157, recall:0.4300
+ 
+f1_score:0.0498, auc:0.7867, threshold for best_f1:0.7241, prec:0.0343, recall:0.0909
+ 
+f1_score:0.0228, auc:0.7756, threshold for best_f1:0.4688, prec:0.0122, recall:0.1818
+ 
+metric: {'total': {'EM': 0.18924969416512186, 'EM_with_conditions': 0.15560513974031198, 'F1': 0.19727966758478427, 'F1_with_conditions': 0.16284103368388556}, 'yesno': {'EM': 0.36988791649351105, 'EM_with_conditions': 0.30497579946393943, 'F1': 0.36988791649351105, 'F1_with_conditions': 0.30497579946393943}, 'extractive': {'EM': 0.008142115456934704, 'EM_with_conditions': 0.005749417989418562, 'F1': 0.02602135314915173, 'F1_with_conditions': 0.02186058809815658}, 'conditional': {'EM': 0.19021266994982014, 'EM_with_conditions': 0.03801111421853732, 'F1': 0.20558062883235123, 'F1_with_conditions': 0.049786808804476106}} 
+total: 0.3865
+ 
+metric: 0.38652936174990615 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.0356, auc:0.7224, threshold for best_f1:0.2274, prec:0.0182, recall:0.9403
+ 
+f1_score:0.0338, auc:0.8178, threshold for best_f1:0.7280, prec:0.0178, recall:0.3372
+ 
+f1_score:0.0234, auc:0.8166, threshold for best_f1:0.6016, prec:0.0131, recall:0.1091
+ 
+metric: {'total': {'EM': 0.18616123439151996, 'EM_with_conditions': 0.12883001612535436, 'F1': 0.1934927846369815, 'F1_with_conditions': 0.13527692482118675}, 'yesno': {'EM': 0.32291452348078425, 'EM_with_conditions': 0.20865300455870597, 'F1': 0.32291452348078425, 'F1_with_conditions': 0.20865300455870597}, 'extractive': {'EM': 0.00686855424868013, 'EM_with_conditions': 0.00686855424868013, 'F1': 0.0231927090920907, 'F1_with_conditions': 0.021222999391744397}, 'conditional': {'EM': 0.2981602762162709, 'EM_with_conditions': 0.03880476501218812, 'F1': 0.3075897577826781, 'F1_with_conditions': 0.04423229671122505}} 
+total: 0.3797
+ 
+metric: 0.3796540190285015 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.0365, auc:0.7475, threshold for best_f1:0.7290, prec:0.0187, recall:0.7284
+ 
+f1_score:0.0416, auc:0.8428, threshold for best_f1:0.7817, prec:0.0232, recall:0.2023
+ 
+f1_score:0.0266, auc:0.8437, threshold for best_f1:0.6392, prec:0.0141, recall:0.2303
+ 
+metric: {'total': {'EM': 0.18733215001015502, 'EM_with_conditions': 0.13576377797757253, 'F1': 0.19760230962418007, 'F1_with_conditions': 0.1438341409298034}, 'yesno': {'EM': 0.36135674948172886, 'EM_with_conditions': 0.25858062340280585, 'F1': 0.36135674948172886, 'F1_with_conditions': 0.25858062340280585}, 'extractive': {'EM': 0.00559099669536681, 'EM_with_conditions': 0.00559099669536681, 'F1': 0.028458148960969588, 'F1_with_conditions': 0.02356016420619331}, 'conditional': {'EM': 0.27568452490418405, 'EM_with_conditions': 0.04239903237583382, 'F1': 0.29646425166592366, 'F1_with_conditions': 0.05322729804850418}} 
+total: 0.3849
+ 
+metric: 0.3849344596343351 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.0453, auc:0.7850, threshold for best_f1:0.8311, prec:0.0241, recall:0.3683
+ 
+f1_score:0.0675, auc:0.8558, threshold for best_f1:0.7734, prec:0.0406, recall:0.1994
+ 
+f1_score:0.0286, auc:0.8570, threshold for best_f1:0.6172, prec:0.0155, recall:0.1939
+ 
+metric: {'total': {'EM': 0.2130091694069546, 'EM_with_conditions': 0.15635398969504102, 'F1': 0.22162174361011877, 'F1_with_conditions': 0.16344517913790557}, 'yesno': {'EM': 0.4010685985146965, 'EM_with_conditions': 0.29314730542638284, 'F1': 0.4010685985146965, 'F1_with_conditions': 0.29314730542638284}, 'extractive': {'EM': 0.018396903854534862, 'EM_with_conditions': 0.012818924899327809, 'F1': 0.03757333860376769, 'F1_with_conditions': 0.028607901393205955}, 'conditional': {'EM': 0.301870877104333, 'EM_with_conditions': 0.045573635550436996, 'F1': 0.3196319953114376, 'F1_with_conditions': 0.05645229888951938}} 
+total: 0.4346
+ 
+metric: 0.43463091301707335 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.1177, auc:0.8264, threshold for best_f1:0.8628, prec:0.1028, recall:0.1379
+ 
+f1_score:0.0796, auc:0.8667, threshold for best_f1:0.8618, prec:0.0582, recall:0.1261
+ 
+f1_score:0.0367, auc:0.8633, threshold for best_f1:0.6538, prec:0.0219, recall:0.1152
+ 
+metric: {'total': {'EM': 0.22972909731012892, 'EM_with_conditions': 0.17434038339375676, 'F1': 0.24151775416295124, 'F1_with_conditions': 0.18478822653122595}, 'yesno': {'EM': 0.3807095875381285, 'EM_with_conditions': 0.2753608779545102, 'F1': 0.3807095875381285, 'F1_with_conditions': 0.2753608779545102}, 'extractive': {'EM': 0.05493220090183132, 'EM_with_conditions': 0.04930002906035762, 'F1': 0.08118038217569354, 'F1_with_conditions': 0.07256280479612903}, 'conditional': {'EM': 0.2987161396745948, 'EM_with_conditions': 0.04814814814814815, 'F1': 0.3111327855722358, 'F1_with_conditions': 0.05449920819062047}} 
+total: 0.4712
+ 
+metric: 0.47124685147308015 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.2050, auc:0.8837, threshold for best_f1:0.9478, prec:0.1874, recall:0.2263
+ 
+f1_score:0.1173, auc:0.9030, threshold for best_f1:0.8823, prec:0.0750, recall:0.2698
+ 
+f1_score:0.0807, auc:0.9036, threshold for best_f1:0.8784, prec:0.0492, recall:0.2242
+ 
+metric: {'total': {'EM': 0.24586050567203013, 'EM_with_conditions': 0.1858697088161716, 'F1': 0.25506380422263925, 'F1_with_conditions': 0.19213744485039566}, 'yesno': {'EM': 0.39355002447133924, 'EM_with_conditions': 0.28213222788652215, 'F1': 0.39355002447133924, 'F1_with_conditions': 0.28213222788652215}, 'extractive': {'EM': 0.07650461419630578, 'EM_with_conditions': 0.06740592519403364, 'F1': 0.09699633362539634, 'F1_with_conditions': 0.08136143120773563}, 'conditional': {'EM': 0.31945096242890425, 'EM_with_conditions': 0.048064024271447375, 'F1': 0.33538367472582686, 'F1_with_conditions': 0.050716810899009084}} 
+total: 0.5009
+ 
+metric: 0.5009243098946694 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.2797, auc:0.9239, threshold for best_f1:0.9619, prec:0.2602, recall:0.3025
+ 
+f1_score:0.1916, auc:0.9332, threshold for best_f1:0.9424, prec:0.1567, recall:0.2463
+ 
+f1_score:0.1046, auc:0.9266, threshold for best_f1:0.9282, prec:0.0816, recall:0.1455
+ 
+metric: {'total': {'EM': 0.26516751017370016, 'EM_with_conditions': 0.19876366711776247, 'F1': 0.2850180472037605, 'F1_with_conditions': 0.21686054871742377}, 'yesno': {'EM': 0.34401815672288427, 'EM_with_conditions': 0.22428508021179414, 'F1': 0.34401815672288427, 'F1_with_conditions': 0.22428508021179414}, 'extractive': {'EM': 0.15139174990728269, 'EM_with_conditions': 0.13730373951778024, 'F1': 0.19559021126327644, 'F1_with_conditions': 0.17759757745452626}, 'conditional': {'EM': 0.33882911604158433, 'EM_with_conditions': 0.03843077840757985, 'F1': 0.3569475043642886, 'F1_with_conditions': 0.04861596359276503}} 
+total: 0.5502
+ 
+metric: 0.5501855573774607 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.3377, auc:0.9479, threshold for best_f1:0.9800, prec:0.3961, recall:0.2942
+ 
+f1_score:0.1983, auc:0.9321, threshold for best_f1:0.9644, prec:0.1673, recall:0.2434
+ 
+f1_score:0.1297, auc:0.9459, threshold for best_f1:0.9097, prec:0.0825, recall:0.3030
+ 
+metric: {'total': {'EM': 0.2685605151160384, 'EM_with_conditions': 0.2114087743469885, 'F1': 0.2997241429727771, 'F1_with_conditions': 0.23868710416330455}, 'yesno': {'EM': 0.3553596248423663, 'EM_with_conditions': 0.256804745781026, 'F1': 0.3553596248423663, 'F1_with_conditions': 0.256804745781026}, 'extractive': {'EM': 0.16190094105947397, 'EM_with_conditions': 0.1447532972047275, 'F1': 0.23128870620924394, 'F1_with_conditions': 0.20549020343636884}, 'conditional': {'EM': 0.2969033775531104, 'EM_with_conditions': 0.03835978835978836, 'F1': 0.32295114858835, 'F1_with_conditions': 0.046831211116925404}} 
+total: 0.5683
+ 
+metric: 0.5682846580888155 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.3851, auc:0.9550, threshold for best_f1:0.9805, prec:0.3514, recall:0.4259
+ 
+f1_score:0.1943, auc:0.9389, threshold for best_f1:0.9263, prec:0.1318, recall:0.3695
+ 
+f1_score:0.1381, auc:0.9512, threshold for best_f1:0.9160, prec:0.0932, recall:0.2667
+ 
+metric: {'total': {'EM': 0.30352766959479704, 'EM_with_conditions': 0.23470129913869636, 'F1': 0.3287977894595192, 'F1_with_conditions': 0.25523578578073786}, 'yesno': {'EM': 0.4168472007372707, 'EM_with_conditions': 0.29269370073786904, 'F1': 0.4168472007372707, 'F1_with_conditions': 0.29269370073786904}, 'extractive': {'EM': 0.1866893447584961, 'EM_with_conditions': 0.17214586757041636, 'F1': 0.24295484601979153, 'F1_with_conditions': 0.217867185484337}, 'conditional': {'EM': 0.3561538521192593, 'EM_with_conditions': 0.04479646196070788, 'F1': 0.38668299763073005, 'F1_with_conditions': 0.053902504798147455}} 
+total: 0.6323
+ 
+metric: 0.6323254590543163 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_1 
+evaluating. 
+f1_score:0.3831, auc:0.9577, threshold for best_f1:0.9824, prec:0.3467, recall:0.4280
+ 
+f1_score:0.2057, auc:0.9429, threshold for best_f1:0.9648, prec:0.1458, recall:0.3490
+ 
+f1_score:0.1783, auc:0.9575, threshold for best_f1:0.9722, prec:0.1879, recall:0.1697
+ 
+metric: {'total': {'EM': 0.38322931164143054, 'EM_with_conditions': 0.286589209388381, 'F1': 0.41477005659526645, 'F1_with_conditions': 0.3149639183975863}, 'yesno': {'EM': 0.5629923146841186, 'EM_with_conditions': 0.39463457980160077, 'F1': 0.5629923146841186, 'F1_with_conditions': 0.39463457980160077}, 'extractive': {'EM': 0.2086910376404592, 'EM_with_conditions': 0.18160296690671662, 'F1': 0.27891847757673416, 'F1_with_conditions': 0.24478102993502546}, 'conditional': {'EM': 0.4729666907163494, 'EM_with_conditions': 0.035785275762077205, 'F1': 0.5006777607050505, 'F1_with_conditions': 0.049173802191735894}} 
+total: 0.7980
+ 
+metric: 0.797999368236697 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_2 
+evaluating. 
+f1_score:0.4475, auc:0.9708, threshold for best_f1:0.9897, prec:0.4571, recall:0.4383
+ 
+f1_score:0.2273, auc:0.9481, threshold for best_f1:0.9360, prec:0.1604, recall:0.3900
+ 
+f1_score:0.1518, auc:0.9584, threshold for best_f1:0.9858, prec:0.1373, recall:0.1697
+ 
+metric: {'total': {'EM': 0.4105451350024146, 'EM_with_conditions': 0.30864825787833755, 'F1': 0.4366211878589932, 'F1_with_conditions': 0.33314674066542393}, 'yesno': {'EM': 0.6093707801304723, 'EM_with_conditions': 0.42959961476663566, 'F1': 0.6093707801304723, 'F1_with_conditions': 0.42959961476663566}, 'extractive': {'EM': 0.2255104837268021, 'EM_with_conditions': 0.19946881706013544, 'F1': 0.28357044516527774, 'F1_with_conditions': 0.2540162201407575}, 'conditional': {'EM': 0.5136950330775649, 'EM_with_conditions': 0.05273296989721581, 'F1': 0.5305477273547442, 'F1_with_conditions': 0.06244903766954957}} 
+total: 0.8472
+ 
+metric: 0.8471663228614077 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_2 
+evaluating. 
+f1_score:0.4682, auc:0.9704, threshold for best_f1:0.9805, prec:0.4024, recall:0.5597
+ 
+f1_score:0.2602, auc:0.9566, threshold for best_f1:0.9263, prec:0.1887, recall:0.4194
+ 
+f1_score:0.1860, auc:0.9539, threshold for best_f1:0.9878, prec:0.2059, recall:0.1697
+ 
+metric: {'total': {'EM': 0.4373554585912079, 'EM_with_conditions': 0.3259071152418081, 'F1': 0.4685713380734782, 'F1_with_conditions': 0.35506052350069917}, 'yesno': {'EM': 0.6440094245158859, 'EM_with_conditions': 0.4386396382139878, 'F1': 0.6440094245158859, 'F1_with_conditions': 0.4386396382139878}, 'extractive': {'EM': 0.2230699843181454, 'EM_with_conditions': 0.20435984046339897, 'F1': 0.2925740909778879, 'F1_with_conditions': 0.2692717260398362}, 'conditional': {'EM': 0.5607848336705659, 'EM_with_conditions': 0.056613756613756616, 'F1': 0.5883963054985678, 'F1_with_conditions': 0.0748950014788524}} 
+total: 0.9059
+ 
+metric: 0.9059267966646861 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_2 
+evaluating. 
+f1_score:0.4848, auc:0.9737, threshold for best_f1:0.9868, prec:0.4112, recall:0.5905
+ 
+f1_score:0.2407, auc:0.9512, threshold for best_f1:0.9668, prec:0.2086, recall:0.2845
+ 
+f1_score:0.1534, auc:0.9547, threshold for best_f1:0.9893, prec:0.1444, recall:0.1636
+ 
+metric: {'total': {'EM': 0.37861944180102775, 'EM_with_conditions': 0.2864119827034478, 'F1': 0.40753660668327235, 'F1_with_conditions': 0.3121349596710225}, 'yesno': {'EM': 0.5365417361160855, 'EM_with_conditions': 0.37682567173946196, 'F1': 0.5365417361160855, 'F1_with_conditions': 0.37682567173946196}, 'extractive': {'EM': 0.2123521300679117, 'EM_with_conditions': 0.1854792500917157, 'F1': 0.27673800500103446, 'F1_with_conditions': 0.24275306599608135}, 'conditional': {'EM': 0.45291425739398666, 'EM_with_conditions': 0.035785275762077205, 'F1': 0.48467721049508516, 'F1_with_conditions': 0.05309833115395469}} 
+total: 0.7862
+ 
+metric: 0.7861560484843001 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_2 
+evaluating. 
+f1_score:0.5228, auc:0.9691, threshold for best_f1:0.9849, prec:0.5150, recall:0.5309
+ 
+f1_score:0.2351, auc:0.9473, threshold for best_f1:0.9390, prec:0.1677, recall:0.3930
+ 
+f1_score:0.1655, auc:0.9610, threshold for best_f1:0.9873, prec:0.1920, recall:0.1455
+ 
+metric: {'total': {'EM': 0.45019482668847965, 'EM_with_conditions': 0.34461543898482433, 'F1': 0.47480869258146297, 'F1_with_conditions': 0.36646806877459864}, 'yesno': {'EM': 0.6420343704233774, 'EM_with_conditions': 0.4506505981074932, 'F1': 0.6420343704233774, 'F1_with_conditions': 0.4506505981074932}, 'extractive': {'EM': 0.26019225046445094, 'EM_with_conditions': 0.23958857592376856, 'F1': 0.3152342812802563, 'F1_with_conditions': 0.2884558740363346}, 'conditional': {'EM': 0.5247098922438526, 'EM_with_conditions': 0.048764715928961845, 'F1': 0.5462817712687376, 'F1_with_conditions': 0.05788911791715793}} 
+total: 0.9250
+ 
+metric: 0.9250035192699426 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_2 
+evaluating. 
+f1_score:0.5004, auc:0.9689, threshold for best_f1:0.9800, prec:0.4267, recall:0.6049
+ 
+f1_score:0.2401, auc:0.9573, threshold for best_f1:0.9722, prec:0.1922, recall:0.3196
+ 
+f1_score:0.1929, auc:0.9630, threshold for best_f1:0.9888, prec:0.2348, recall:0.1636
+ 
+metric: {'total': {'EM': 0.40371167156417637, 'EM_with_conditions': 0.3105830210820571, 'F1': 0.4405228289323702, 'F1_with_conditions': 0.34500779159668304}, 'yesno': {'EM': 0.5730282204851155, 'EM_with_conditions': 0.4114643161248756, 'F1': 0.5730282204851155, 'F1_with_conditions': 0.4114643161248756}, 'extractive': {'EM': 0.24181952121932726, 'EM_with_conditions': 0.21548173843659071, 'F1': 0.3241373849403276, 'F1_with_conditions': 0.29246311502047867}, 'conditional': {'EM': 0.4751090487342096, 'EM_with_conditions': 0.055291005291005293, 'F1': 0.49541286786704275, 'F1_with_conditions': 0.06483714400457986}} 
+total: 0.8442
+ 
+metric: 0.8442345004965466 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_2 
+evaluating. 
+f1_score:0.4914, auc:0.9701, threshold for best_f1:0.9956, prec:0.4604, recall:0.5267
+ 
+f1_score:0.2569, auc:0.9438, threshold for best_f1:0.9497, prec:0.1825, recall:0.4340
+ 
+f1_score:0.1530, auc:0.9552, threshold for best_f1:0.9517, prec:0.1083, recall:0.2606
+ 
+metric: {'total': {'EM': 0.38173479910026004, 'EM_with_conditions': 0.2991774017086128, 'F1': 0.410613585226823, 'F1_with_conditions': 0.32549612734261024}, 'yesno': {'EM': 0.5388431807882157, 'EM_with_conditions': 0.38889188338002334, 'F1': 0.5388431807882157, 'F1_with_conditions': 0.38889188338002334}, 'extractive': {'EM': 0.19967014245479583, 'EM_with_conditions': 0.18389639970002172, 'F1': 0.2642494752102592, 'F1_with_conditions': 0.2427508727713232}, 'conditional': {'EM': 0.42646729998262517, 'EM_with_conditions': 0.05430379428059572, 'F1': 0.44949736416529257, 'F1_with_conditions': 0.06579326830630164}} 
+total: 0.7923
+ 
+metric: 0.7923483843270831 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_2 
+evaluating. 
+f1_score:0.5207, auc:0.9643, threshold for best_f1:0.9922, prec:0.5000, recall:0.5432
+ 
+f1_score:0.2954, auc:0.9451, threshold for best_f1:0.9639, prec:0.2356, recall:0.3959
+ 
+f1_score:0.2139, auc:0.9640, threshold for best_f1:0.9810, prec:0.2044, recall:0.2242
+ 
+metric: {'total': {'EM': 0.42774354443231977, 'EM_with_conditions': 0.3202211315112097, 'F1': 0.4577314057894651, 'F1_with_conditions': 0.3486145413581044}, 'yesno': {'EM': 0.603174479020381, 'EM_with_conditions': 0.405721619703298, 'F1': 0.603174479020381, 'F1_with_conditions': 0.405721619703298}, 'extractive': {'EM': 0.2301198119595618, 'EM_with_conditions': 0.2120048010363147, 'F1': 0.29717928145113087, 'F1_with_conditions': 0.27549872541834686}, 'conditional': {'EM': 0.5516354275597133, 'EM_with_conditions': 0.06693121693121694, 'F1': 0.5685478289681214, 'F1_with_conditions': 0.07665593216643174}} 
+total: 0.8855
+ 
+metric: 0.8854749502217849 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_2 
+evaluating. 
+f1_score:0.5389, auc:0.9727, threshold for best_f1:0.9961, prec:0.5428, recall:0.5350
+ 
+f1_score:0.2630, auc:0.9532, threshold for best_f1:0.9775, prec:0.2207, recall:0.3255
+ 
+f1_score:0.1935, auc:0.9601, threshold for best_f1:0.9917, prec:0.2069, recall:0.1818
+ 
+metric: {'total': {'EM': 0.43058046079884676, 'EM_with_conditions': 0.332625910743649, 'F1': 0.462274278259167, 'F1_with_conditions': 0.3620190800598585}, 'yesno': {'EM': 0.5697308934593409, 'EM_with_conditions': 0.3967535586177824, 'F1': 0.5697308934593409, 'F1_with_conditions': 0.3967535586177824}, 'extractive': {'EM': 0.27412073308808454, 'EM_with_conditions': 0.2498425178649875, 'F1': 0.3449950965426586, 'F1_with_conditions': 0.31557212483981806}, 'conditional': {'EM': 0.49739299813242666, 'EM_with_conditions': 0.05582010582010581, 'F1': 0.5214952171176868, 'F1_with_conditions': 0.06955114904461308}} 
+total: 0.8929
+ 
+metric: 0.8928547390580137 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_2 
+evaluating. 
+f1_score:0.5127, auc:0.9752, threshold for best_f1:0.9897, prec:0.4259, recall:0.6440
+ 
+f1_score:0.2819, auc:0.9476, threshold for best_f1:0.9814, prec:0.2257, recall:0.3754
+ 
+f1_score:0.2118, auc:0.9667, threshold for best_f1:0.9883, prec:0.1784, recall:0.2606
+ 
+metric: {'total': {'EM': 0.4239893479330853, 'EM_with_conditions': 0.32550114687487036, 'F1': 0.45187659436445327, 'F1_with_conditions': 0.35002856566273455}, 'yesno': {'EM': 0.62507741999121, 'EM_with_conditions': 0.4504514216367642, 'F1': 0.62507741999121, 'F1_with_conditions': 0.4504514216367642}, 'extractive': {'EM': 0.23008510236083043, 'EM_with_conditions': 0.20588494972875618, 'F1': 0.29217779949317324, 'F1_with_conditions': 0.26049678062360976}, 'conditional': {'EM': 0.5041494504912116, 'EM_with_conditions': 0.05860758856119146, 'F1': 0.5341517944978341, 'F1_with_conditions': 0.07341071227577278}} 
+total: 0.8759
+ 
+metric: 0.8758659422975386 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_2 
+evaluating. 
+f1_score:0.5590, auc:0.9711, threshold for best_f1:0.9854, prec:0.4835, recall:0.6626
+ 
+f1_score:0.2728, auc:0.9561, threshold for best_f1:0.9790, prec:0.1954, recall:0.4516
+ 
+f1_score:0.1966, auc:0.9661, threshold for best_f1:0.9829, prec:0.1502, recall:0.2848
+ 
+metric: {'total': {'EM': 0.446347323565743, 'EM_with_conditions': 0.3506738472414036, 'F1': 0.4772691948472718, 'F1_with_conditions': 0.37863889957576063}, 'yesno': {'EM': 0.616562963594208, 'EM_with_conditions': 0.4491291487034982, 'F1': 0.616562963594208, 'F1_with_conditions': 0.4491291487034982}, 'extractive': {'EM': 0.2645207566826715, 'EM_with_conditions': 0.2391016090705386, 'F1': 0.3336688782886095, 'F1_with_conditions': 0.30163763161351}, 'conditional': {'EM': 0.5045703800441125, 'EM_with_conditions': 0.07328042328042329, 'F1': 0.5331114753488592, 'F1_with_conditions': 0.08849236650585626}} 
+total: 0.9236
+ 
+metric: 0.9236165184130148 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_2 
+evaluating. 
+f1_score:0.5454, auc:0.9758, threshold for best_f1:0.9912, prec:0.4742, recall:0.6420
+ 
+f1_score:0.2675, auc:0.9529, threshold for best_f1:0.9814, prec:0.2097, recall:0.3695
+ 
+f1_score:0.1941, auc:0.9342, threshold for best_f1:0.9697, prec:0.1489, recall:0.2788
+ 
+metric: {'total': {'EM': 0.4227553117909583, 'EM_with_conditions': 0.3295519169632583, 'F1': 0.4564721344456739, 'F1_with_conditions': 0.35954516036840045}, 'yesno': {'EM': 0.5615428276419602, 'EM_with_conditions': 0.3976055162477538, 'F1': 0.5615428276419602, 'F1_with_conditions': 0.3976055162477538}, 'extractive': {'EM': 0.26706749615330333, 'EM_with_conditions': 0.24269302743046767, 'F1': 0.3421401090954433, 'F1_with_conditions': 0.30947485844972894}, 'conditional': {'EM': 0.49279842633695, 'EM_with_conditions': 0.07116402116402117, 'F1': 0.5371139697372243, 'F1_with_conditions': 0.09863480129241507}} 
+total: 0.8792
+ 
+metric: 0.8792274462366323 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_2 
+evaluating. 
+f1_score:0.5643, auc:0.9725, threshold for best_f1:0.9971, prec:0.5100, recall:0.6317
+ 
+f1_score:0.2419, auc:0.9560, threshold for best_f1:0.9731, prec:0.1915, recall:0.3284
+ 
+f1_score:0.1818, auc:0.9643, threshold for best_f1:0.9951, prec:0.1259, recall:0.3273
+ 
+metric: {'total': {'EM': 0.4008575579738061, 'EM_with_conditions': 0.32708508047134977, 'F1': 0.43385572433493685, 'F1_with_conditions': 0.35791529486774215}, 'yesno': {'EM': 0.5166138492377651, 'EM_with_conditions': 0.39021415631328915, 'F1': 0.5166138492377651, 'F1_with_conditions': 0.39021415631328915}, 'extractive': {'EM': 0.28412987173073717, 'EM_with_conditions': 0.2610829967307373, 'F1': 0.3576023515191917, 'F1_with_conditions': 0.32972839597270415}, 'conditional': {'EM': 0.3916691442571444, 'EM_with_conditions': 0.05793650793650794, 'F1': 0.41597820660379364, 'F1_with_conditions': 0.07243816853791277}} 
+total: 0.8347
+ 
+metric: 0.834713282308743 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 
+epoch_2 
+evaluating. 
+f1_score:0.5780, auc:0.9689, threshold for best_f1:0.9976, prec:0.5885, recall:0.5679
+ 
+f1_score:0.2830, auc:0.9582, threshold for best_f1:0.9922, prec:0.3090, recall:0.2610
+ 
+f1_score:0.2114, auc:0.9443, threshold for best_f1:0.9722, prec:0.1661, recall:0.2909
+ 
+metric: {'total': {'EM': 0.3556978578083507, 'EM_with_conditions': 0.2873165022091219, 'F1': 0.3867142773261403, 'F1_with_conditions': 0.31645866967867425}, 'yesno': {'EM': 0.45229926162038037, 'EM_with_conditions': 0.33618990271468596, 'F1': 0.45229926162038037, 'F1_with_conditions': 0.33618990271468596}, 'extractive': {'EM': 0.23101887563667095, 'EM_with_conditions': 0.20884039794638226, 'F1': 0.3003784279441689, 'F1_with_conditions': 0.27400870945309797}, 'conditional': {'EM': 0.3524387035478465, 'EM_with_conditions': 0.04417989417989418, 'F1': 0.37003129614043906, 'F1_with_conditions': 0.05332347753916381}} 
+total: 0.7424
+ 
+metric: 0.742412135134491 
+achieving best result, now saving to model_best.pt 
+training. 
+training. 
+training. 
+training. 

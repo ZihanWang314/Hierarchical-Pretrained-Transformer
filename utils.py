@@ -67,9 +67,9 @@ def convert_examples_to_inputs(examples, tokenizer):
     examples_short = []
     for qa in tqdm(examples, desc = 'checking long example..'):
         examples_short += check_and_transform_long_example(qa)
-
     inputs = []
-    for qa_index, qa in tqdm(enumerate(examples_short), total = len(examples_short), desc = 'converting examples to inputs..'):
+
+    for qa in tqdm(examples_short, desc = 'converting examples to inputs..'):
         input_head = tokenizer('Title: ' + qa['title'] + ' Document: ')
         input_tail = tokenizer(' Question: ' + qa['question'] + ' Scenario: ' + qa['scenario']) 
 
@@ -78,6 +78,7 @@ def convert_examples_to_inputs(examples, tokenizer):
         index_HTMLelements = []
         label_HTMLelements = []
         label_answer_span = []
+        mask_label_condition = [torch.zeros(len(input_head), 5, 2)]
 
         if {'yes', 'no'} & {i[0] for i in qa['answers']}:
             yesno = True
@@ -97,6 +98,7 @@ def convert_examples_to_inputs(examples, tokenizer):
 
         else:
             yesno = False
+        
         for sentence in qa['document']:
             tokens = sentence['tokens']
             global_mask_sentence = torch.zeros(tokens.shape[0])
@@ -123,6 +125,14 @@ def convert_examples_to_inputs(examples, tokenizer):
                 label_answer_span.append([index_HTMLelement + sentence['answer_start'], index_HTMLelement + sentence['answer_end']])
             else:
                 label_answer_span.append([-1, -1])
+
+            mask_label_condition.append(torch.zeros(1, 5, 2))
+            if sentence['condition_of'] != -1:
+                mask_label_condition[-1][0, sentence['condition_of'], 1] = 1
+            if sentence['has_answer'] != -1:
+                mask_label_condition[-1][0, sentence['has_answer'], 0] = 1
+            mask_label_condition.append(torch.zeros(len(tokens) - 1, 5, 2))
+        
         input_text.append(input_tail)
         global_mask.append(torch.ones(input_tail.shape[0]))
         input_text= torch.concat(input_text, dim = 0)
@@ -148,14 +158,19 @@ def convert_examples_to_inputs(examples, tokenizer):
         for i in label_answer_span:
             mask_answer_span[i[0], 0] = 1
             mask_answer_span[i[1], 1] = 1
-            
+        
 
         text_length = input_text.shape[0]
         input_text = torch.concat((input_text, torch.zeros(4000 - text_length, dtype = torch.long)))
         global_mask = torch.concat((global_mask, torch.zeros(4000 - text_length, dtype = torch.long)))
         attn_mask = torch.concat((torch.ones(text_length), torch.zeros(4000 - text_length)))
         qa_id = torch.tensor(int(qa['id'].split('-')[1]), dtype = torch.long)
-        inputs.append([input_text, global_mask, attn_mask, mask_HTMLelements, mask_label_HTMLelements, mask_answer_span, qa_id])
+        mask_label_condition = torch.concat(mask_label_condition, dim=0)
+        tmp = torch.zeros((4000, 5, 2), dtype=torch.long)
+        tmp[:len(mask_label_condition)] = mask_label_condition
+        mask_label_condition = tmp
+
+        inputs.append([input_text, global_mask, attn_mask, mask_HTMLelements, mask_label_HTMLelements, mask_answer_span, qa_id, mask_label_condition])
     return inputs
 
 def input_to_batch(inputs, batch_size = 4, distributed = False):
