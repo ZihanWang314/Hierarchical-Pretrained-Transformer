@@ -2002,3 +2002,19 @@ training.
 training. 
 training. 
 training. 
+epoch_2 
+evaluating. 
+f1_score:0.5546, auc:0.9750, threshold for best_f1:0.9990, prec:0.5228, recall:0.5905
+ 
+f1_score:0.2706, auc:0.9502, threshold for best_f1:0.9946, prec:0.2470, recall:0.2991
+ 
+f1_score:0.2051, auc:0.9242, threshold for best_f1:0.9951, prec:0.2177, recall:0.1939
+ 
+metric: {'total': {'EM': 0.38535276894808357, 'EM_with_conditions': 0.30982459993399897, 'F1': 0.41364402511658294, 'F1_with_conditions': 0.3372993629406286}, 'yesno': {'EM': 0.534965034965035, 'EM_with_conditions': 0.3951048951048951, 'F1': 0.534965034965035, 'F1_with_conditions': 0.3951048951048951}, 'extractive': {'EM': 0.20425343607287963, 'EM_with_conditions': 0.19283611323823396, 'F1': 0.26751892230794916, 'F1_with_conditions': 0.2542757407491223}, 'conditional': {'EM': 0.3925925925925926, 'EM_with_conditions': 0.052116402116402116, 'F1': 0.4088217338217338, 'F1_with_conditions': 0.0646648440126701}} 
+total: 0.7990
+ 
+metric: 0.7989967940646665 
+training. 
+training. 
+training. 
+training. 
