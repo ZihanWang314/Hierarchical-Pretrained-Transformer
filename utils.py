@@ -161,7 +161,7 @@ def convert_examples_to_inputs(examples, tokenizer):
         
 
         text_length = input_text.shape[0]
-        input_text = torch.concat((input_text, torch.zeros(4000 - text_length, dtype = torch.long)))
+        input_text = torch.concat((input_text, torch.ones(4000 - text_length, dtype = torch.long)))
         global_mask = torch.concat((global_mask, torch.zeros(4000 - text_length, dtype = torch.long)))
         attn_mask = torch.concat((torch.ones(text_length), torch.zeros(4000 - text_length)))
         qa_id = torch.tensor(int(qa['id'].split('-')[1]), dtype = torch.long)
@@ -216,3 +216,52 @@ class ReIndexer:
         sorted_tensor = torch.gather(tensor, 1, index)
         return sorted_tensor
 
+def get_level(text):
+    return text[0][0] - 50264
+
+class TxtNode:
+    def __init__(self, text, tokenizer):
+        self.tokenizer = tokenizer
+        self.text = text
+        self.level = get_level(text)
+        self.children = []
+        self.parent = None
+
+    def get_nodes_list(self):
+        if self.children == []:
+            return [self]
+        else:
+            nodes = [self]
+            for child in self.children:
+                nodes += child.get_nodes_list()
+            return nodes
+
+
+    def __str__(self, indent = 0):
+        string = self.tokenizer.tokenizer.decode([i[0] for i in self.text][:10])
+        string = ' ' * indent + string
+        if self.children == []:
+            return string
+        else:
+            return '\n'.join([string] + [node.__str__(indent + 4) for node in self.children])
+
+    __repr__ = __str__
+
+
+    def __len__(self):
+        nodes = self.get_nodes_list()
+        return sum(len(i.text) for i in nodes)
+
+        
+    def copy(self): # deep copy 
+        newnode = TxtNode(self.text, self.tokenizer)
+        for child in self.children:
+            newnode.children.append(child.copy())
+        for child in newnode.children:
+            child.parent = newnode
+        return newnode
+
+    
+
+        
+    

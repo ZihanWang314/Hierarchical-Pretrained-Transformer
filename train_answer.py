@@ -1,6 +1,6 @@
 
 import torch
-from transformers import LongformerModel, LongformerTokenizerFast
+from transformers import LongformerModel, LongformerConfig, LongformerTokenizerFast
 import json
 from tqdm import tqdm
 from torch import nn
@@ -12,6 +12,7 @@ from random import shuffle
 from evaluate import evaluate
 import argparse
 from utils import Logger, input_to_batch, Tokenizer, ReIndexer
+from contrastive_learning import batch_generate_contrastive_sample
 os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3'
 
 parser = argparse.ArgumentParser()
@@ -26,6 +27,7 @@ parser.add_argument('--model_root', type=str)
 #model argument
 parser.add_argument('--train_condition', action='store_true')
 parser.add_argument('--contrastive_learning', action='store_true')
+parser.add_argument('--warmup_epoch_num', type=int, default=10)
 
 args = parser.parse_args()
 
@@ -40,18 +42,22 @@ class ConditionCalculator(nn.Module):
     def forward(self, hidden_states):
         hidden_states_t = self.projector(hidden_states)
         hidden_states_t = self.activation(hidden_states_t)
-        scores = torch.einsum('bqh,bch->bqc', hidden_states, hidden_states_t)
+        scores = torch.einsum('bqh,bch->bcq', hidden_states, hidden_states_t)
         scores = torch.sigmoid(scores)
         return scores
 
 class HPTEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
+        self.config = config
+        # self.transformer_config = LongformerConfig.from_pretrained('allenai/longformer-base-4096')
+        # self.transformer = LongformerModel(self.transformer_config)
         self.transformer = LongformerModel.from_pretrained('allenai/longformer-base-4096')
         self.transformer.resize_token_embeddings(50282)
         self.ans_weight = 0.6
         self.span_weight = 0.2
-        self.condition_weight = 0.2
+        self.condition_weight = 0.0
+        self.contrastive_weight = 0.2
         self.ans_probe = nn.Sequential(nn.Linear(768, 3), nn.Sigmoid())
         self.span_probe = nn.Sequential(nn.Linear(768, 2), nn.Sigmoid())
         self.condition_calculator = ConditionCalculator()
@@ -67,7 +73,32 @@ class HPTEncoder(nn.Module):
         loss_fn = torch.nn.BCELoss(weight=tensor)
         return loss_fn(input, target)
 
+    def contrastive_loss(self, last_hiddens, contrastive_pairs):
+        loss = []
+        for hidden, pair in zip(last_hiddens, contrastive_pairs):
+            pair = pair.transpose(0, 1)
+            index = pair.unsqueeze(2).repeat(1, 1, hidden.shape[-1])
+            hiddens_selected = torch.gather(hidden, 1, index)
+            origin_hidden, new_hidden = hiddens_selected[0], hiddens_selected[1]
+            hidden_similarity_map = torch.einsum('ac,bc->ab', origin_hidden, origin_hidden) / (768 ** 0.5)
+            hidden_similarity_map = hidden_similarity_map.exp()
+            denominator = hidden_similarity_map.sum(1)
+            contrastive_similarity = (origin_hidden * new_hidden).sum(-1) / (768 ** 0.5)
+            numerator = contrastive_similarity.exp()
+            pointwise_loss = - torch.log (numerator / (denominator + 1e-8))
+            contrastive_loss = pointwise_loss.mean()
+            loss.append(contrastive_loss)
+        loss = sum(loss) / len(loss)
+        return loss
+
+
     def forward(self, data, autocast = True):
+        if self.config.contrastive_learning:
+            data, contrastive_pairs = batch_generate_contrastive_sample(data)
+            # contrastive pairs is a list: [torch.Tensor, ...] where each tensor is like: torch.tensor([[1, 2], [37, 121], [133, 66]]) \
+            # where each pair is the transformed HTMLElement index from A to B 
+            # the enhanced tensors be like: [origin_1, enhanced_1, origin_2, enhanced_2]
+
         input_ids = data[0] # [[101, 1, ..]]
         global_masks = data[1].float() # [[1, 0, 1, 0, 1, 1, 1]]
         attn_masks = data[2].float() # [[1, 1, 1, 0, 1, 1, 1]]
@@ -110,7 +141,13 @@ class HPTEncoder(nn.Module):
         label_condition = label_condition[mask_r!=0]
         loss_condition = self.weighted_loss(pred_condition, label_condition)
         
-        return self.ans_weight * loss_extractive + self.span_weight * loss_span + self.condition_weight * loss_condition
+        loss_total = self.ans_weight * loss_extractive + self.span_weight * loss_span + self.condition_weight * loss_condition
+        if self.config.contrastive_learning:
+            last_hidden_resized = last_hidden.reshape(last_hidden.shape[0] // 2, 2, last_hidden.shape[1], last_hidden.shape[2])
+            contrastive_loss = self.contrastive_loss(last_hidden_resized, contrastive_pairs)
+            loss_total += self.contrastive_weight + contrastive_loss
+
+        return loss_total
 
 
 class HPTModel(nn.Module):
@@ -119,8 +156,10 @@ class HPTModel(nn.Module):
         self.config = config
         self.encoder = HPTEncoder(config)
         self.mode = None
+        self.lr_warmup_weight = min((config.epoch + 1) / config.warmup_epoch_num, 1) # first 10 epoches use warmup
+        # self.lr_warmup_weight = 1
         self.optimizer = torch.optim.AdamW([
-            {'params':self.encoder.parameters(), 'lr':3e-5, 'weight_decay':0.01},
+            {'params':self.encoder.parameters(), 'lr':3e-5 * self.lr_warmup_weight, 'weight_decay':0.01},
         ])
         self.optimizer.zero_grad()
         self.scaler = torch.cuda.amp.GradScaler()
@@ -160,7 +199,7 @@ class HPTModel(nn.Module):
         self.optimizer.zero_grad()
         self.activate_training_mode()
         batch_steps = 0
-        for batch in tqdm(list(train_inputs), total = len(train_inputs)):
+        for batch in train_inputs:
             batch_steps += 1
             loss = self.encoder(batch, autocast = True)
             loss /= args.accumulation_step
@@ -185,7 +224,7 @@ class HPTModel(nn.Module):
         labels = {'extractive': [], 'yes': [], 'no': [], 'condition': []}
         with torch.no_grad():
             with torch.cuda.amp.autocast():
-                for data in tqdm(dev_inputs, total = len(dev_inputs)):
+                for data in dev_inputs:
                     input_ids = data[0]
                     global_masks = data[1].float()
                     attn_masks = data[2].float()
@@ -220,7 +259,7 @@ class HPTModel(nn.Module):
                     indexer = ReIndexer()
                     indexer.set_index(mask_HTMLelements)
                     max_HTML_num = indexer.mask_r.count_nonzero(-1).max()
-                    mask_r = indexer.mask_r[:, :max_HTML_num]
+                    mask_r = indexer.mask_r[:, :max_HTML_num].cuda()
                     last_hidden_r = indexer.re_index(last_hidden)[:, :max_HTML_num] # B * HTML * H
                     pred_condition = self.encoder.condition_calculator(last_hidden_r)
                     ans_indicator = mask_label_condition[..., 0]
@@ -230,15 +269,16 @@ class HPTModel(nn.Module):
                     cond_indicator = cond_indicator.unsqueeze(2).repeat(1, 1, max_HTML_num, 1)# 1, 2, 3, 3
                     label_condition = torch.einsum('abcd,abc->acd',cond_indicator, ans_indicator)
                     mask_r = torch.einsum('ab,ac->abc', mask_r, mask_r)
-                    pred_condition = pred_condition[mask_r!=0].tolist()
-                    label_condition = label_condition[mask_r!=0].tolist()
+                    mask_r = mask_r.unsqueeze(2).repeat(1, 1, ans_indicator.shape[1], 1)
+                    mask_condition = torch.einsum('abcd,acd->adb', mask_r, ans_indicator)
+                    pred_condition = pred_condition[mask_condition!=0].tolist()
+                    label_condition = label_condition[mask_condition!=0].tolist()
                     labels['condition'] += label_condition
                     preds['condition'] += pred_condition
                     
-
-
         thresholds = []
         for name in ['extractive', 'yes', 'no', 'condition']:
+            logger.log(name)
             _, threshold = analyze_binary_classification(labels[name], preds[name])
             thresholds.append(threshold)
 
@@ -255,7 +295,7 @@ class HPTModel(nn.Module):
         output = {}
         with torch.no_grad():
             with torch.cuda.amp.autocast():
-                for data in tqdm(test_inputs, total = len(test_inputs)):
+                for data in test_inputs:
                     input_ids = data[0]
                     global_masks = data[1].float()
                     attn_masks = data[2].float()
@@ -287,7 +327,7 @@ class HPTModel(nn.Module):
                         indexer = ReIndexer()
                         indexer.set_index(mask_HTMLelements[sample_index:sample_index+1])
                         HTML_num = indexer.mask_r.count_nonzero()
-                        last_hidden_r = indexer.re_index(last_hidden)[:, :HTML_num] # 1 * HTML * H
+                        last_hidden_r = indexer.re_index(last_hidden.unsqueeze(0))[:, :HTML_num] # 1 * HTML * H
                         pred_condition = self.encoder.condition_calculator(last_hidden_r)[0] # HTML * HTML
                         pred_condition = (pred_condition > thre_condition)
 
@@ -308,7 +348,12 @@ class HPTModel(nn.Module):
 
                             if pred_answer != '':
                                 if id_example in output:
-                                    output[id_example].append([[pred_answer, pred_conditions], prob])
+                                    if pred_answer not in [i[0][0] for i in output[id_example]]:
+                                        output[id_example].append([[pred_answer, pred_conditions], prob])
+                                    else:
+                                        for i in output[id_example]:
+                                            if i[0][0] == pred_answer:
+                                                i[0][1] += pred_conditions
                                 else:
                                     output.update({id_example:[[[pred_answer, pred_conditions], prob]]})
 
@@ -316,12 +361,12 @@ class HPTModel(nn.Module):
                         pred_yes = pred_HTMLelements[:, 1].max()
                         pred_no = pred_HTMLelements[:, 2].max()
                         if pred_yes > thre_yes:
-                            if id_example in output:
+                            if id_example in output and 'yes' not in [i[0][0] for i in output[id_example]]:
                                 output[id_example].append([['yes', []], pred_yes])
                             else:
                                 output.update({id_example:[[['yes', []], pred_yes]]})
                         if pred_no > thre_no:
-                            if id_example in output:
+                            if id_example in output and 'no' not in [i[0][0] for i in output[id_example]]:
                                 output[id_example].append([['no', []], pred_no])
                             else:
                                 output.update({id_example:[[['no', []], pred_no]]})
@@ -338,7 +383,7 @@ class HPTModel(nn.Module):
             answered = set()
             for x in output_real:
                 answered.add(int(x['id'].split('-')[1]))
-            all_qa = set(range(1,285))
+            all_qa = set(range(0, 285))
             for k in all_qa - answered:
                 output_real.append({'id':'dev-'+str(k), 'answers':[]})
 
@@ -365,7 +410,7 @@ def analyze_binary_classification(label_answer_sentence, pred_answer_sentence):
     auc = metrics.auc(fpr, tpr)
     p, r, thresholds = metrics.precision_recall_curve(label_answer_sentence, pred_answer_sentence, pos_label = 1)
     f1_score = torch.tensor(2 *p * r / (p + r + 0.00001))
-    logger.log('f1_score:%.4f, auc:%.4f, threshold for best_f1:%.4f, prec:%.4f, recall:%.4f\n'%\
+    logger.log('f1_score:%.4f, auc:%.4f, threshold for best_f1:%.4f, prec:%.4f, recall:%.4f'%\
         (f1_score.max(), auc, thresholds[f1_score.argmax()], p[f1_score.argmax()], r[f1_score.argmax()]))
     return (f1_score.max() + auc, thresholds[f1_score.argmax()])
 
