@@ -11,8 +11,8 @@ import os
 from random import shuffle
 from evaluate import evaluate
 import argparse
-from utils import Logger, input_to_batch, Tokenizer, ReIndexer
-from contrastive_learning import batch_generate_contrastive_sample
+from utils import Logger, input_to_batch, Tokenizer, ReIndexer, to_numpy
+from contrastive_learning import ContrastiveSampler
 os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3'
 
 parser = argparse.ArgumentParser()
@@ -28,8 +28,15 @@ parser.add_argument('--model_root', type=str)
 parser.add_argument('--train_condition', action='store_true')
 parser.add_argument('--contrastive_learning', action='store_true')
 parser.add_argument('--warmup_epoch_num', type=int, default=10)
+parser.add_argument('--total_epoch_num', type=int, default=100)
+parser.add_argument('--contrastive_mode', type=str, default='hpt')
+parser.add_argument('--nohup', action='store_true')
+
 
 args = parser.parse_args()
+
+assert args.contrastive_mode in ['hpt', 'simcse'], 'contrastive mode definition assertion'
+print(f'using {args.contrastive_mode} for contrastive learning')
 
 logger = Logger(args.logdir)
 
@@ -61,12 +68,16 @@ class HPTEncoder(nn.Module):
         self.ans_probe = nn.Sequential(nn.Linear(768, 3), nn.Sigmoid())
         self.span_probe = nn.Sequential(nn.Linear(768, 2), nn.Sigmoid())
         self.condition_calculator = ConditionCalculator()
-
+        
+        if config.contrastive_learning:
+            self.con_sampler = ContrastiveSampler(config)
 
     def weighted_loss(self, input, target):
         """
         return the weighted loss considering the pos-neg distribution in target data
         """
+        if target.shape[0] == 0:
+            return torch.tensor(0.)
         x = target.shape[0]/target.count_nonzero()/2
         y = target.shape[0]/(target.shape[0]-target.count_nonzero())/2
         tensor = torch.where(target == 1, x, y)
@@ -80,9 +91,8 @@ class HPTEncoder(nn.Module):
             index = pair.unsqueeze(2).repeat(1, 1, hidden.shape[-1])
             hiddens_selected = torch.gather(hidden, 1, index)
             origin_hidden, new_hidden = hiddens_selected[0], hiddens_selected[1]
-            hidden_similarity_map = torch.einsum('ac,bc->ab', origin_hidden, origin_hidden) / (768 ** 0.5)
-            hidden_similarity_map = hidden_similarity_map.exp()
-            denominator = hidden_similarity_map.sum(1)
+            hidden_similarity_map = torch.einsum('ac,bc->ab', new_hidden, origin_hidden) / (768 ** 0.5)
+            denominator = hidden_similarity_map.exp().sum(1)
             contrastive_similarity = (origin_hidden * new_hidden).sum(-1) / (768 ** 0.5)
             numerator = contrastive_similarity.exp()
             pointwise_loss = - torch.log (numerator / (denominator + 1e-8))
@@ -94,10 +104,11 @@ class HPTEncoder(nn.Module):
 
     def forward(self, data, autocast = True):
         if self.config.contrastive_learning:
-            data, contrastive_pairs = batch_generate_contrastive_sample(data)
+            data, contrastive_pairs = self.con_sampler.batch_generate(data)
             # contrastive pairs is a list: [torch.Tensor, ...] where each tensor is like: torch.tensor([[1, 2], [37, 121], [133, 66]]) \
             # where each pair is the transformed HTMLElement index from A to B 
             # the enhanced tensors be like: [origin_1, enhanced_1, origin_2, enhanced_2]
+            # the enhanced data only participate in contrastive learning part, not QA part
 
         input_ids = data[0] # [[101, 1, ..]]
         global_masks = data[1].float() # [[1, 0, 1, 0, 1, 1, 1]]
@@ -106,14 +117,22 @@ class HPTEncoder(nn.Module):
         mask_label_HTMLelements = data[4] # [[..., -1, 0, 1, 0, 0]]
         mask_answer_span = data[5] # [[0, 0, 1, 0], [0, 0, 0, 1]]
         mask_label_condition = data[7].float()
-
         attn_masks, input_ids, global_masks, mask_HTMLelements, mask_label_HTMLelements, mask_answer_span = \
             dynamic_padding(attn_masks, input_ids, global_masks, mask_HTMLelements, mask_label_HTMLelements, mask_answer_span)
         if autocast == True:
             with torch.cuda.amp.autocast():
-                last_hidden = self.transformer(input_ids, global_attention_mask = global_masks, attention_mask = attn_masks).last_hidden_state
+                last_hidden_all = self.transformer(input_ids, global_attention_mask = global_masks, attention_mask = attn_masks).last_hidden_state
         else:
-            last_hidden = self.transformer(input_ids, global_attention_mask = global_masks, attention_mask = attn_masks).last_hidden_state
+            last_hidden_all = self.transformer(input_ids, global_attention_mask = global_masks, attention_mask = attn_masks).last_hidden_state
+        if self.config.contrastive_learning:
+            last_hidden = last_hidden_all[::2]
+            mask_HTMLelements = mask_HTMLelements[::2]
+            mask_label_HTMLelements = mask_label_HTMLelements[::2]
+            mask_answer_span = mask_answer_span[::2]
+            mask_label_condition = mask_label_condition[::2]
+        else:
+            last_hidden = last_hidden_all
+
         label_extractive = mask_label_HTMLelements
         pred_extractive = self.ans_probe(last_hidden)[label_extractive != 0]
         label_extractive = (label_extractive[label_extractive != 0] + 1) / 2
@@ -122,7 +141,6 @@ class HPTEncoder(nn.Module):
         pred_span = self.span_probe(last_hidden)[mask_answer_span != 0]
         label_span = (mask_answer_span[mask_answer_span != 0] + 1) / 2
         loss_span = self.weighted_loss(pred_span, label_span)
-
         indexer = ReIndexer()
         indexer.set_index(mask_HTMLelements)
         max_HTML_num = indexer.mask_r.count_nonzero(-1).max()
@@ -143,11 +161,10 @@ class HPTEncoder(nn.Module):
         
         loss_total = self.ans_weight * loss_extractive + self.span_weight * loss_span + self.condition_weight * loss_condition
         if self.config.contrastive_learning:
-            last_hidden_resized = last_hidden.reshape(last_hidden.shape[0] // 2, 2, last_hidden.shape[1], last_hidden.shape[2])
+            last_hidden_resized = last_hidden_all.reshape(last_hidden_all.shape[0] // 2, 2, last_hidden_all.shape[1], last_hidden_all.shape[2])
             contrastive_loss = self.contrastive_loss(last_hidden_resized, contrastive_pairs)
             loss_total += self.contrastive_weight + contrastive_loss
-
-        return loss_total
+        return loss_total, to_numpy(loss_extractive, loss_span, contrastive_loss)
 
 
 class HPTModel(nn.Module):
@@ -157,9 +174,10 @@ class HPTModel(nn.Module):
         self.encoder = HPTEncoder(config)
         self.mode = None
         self.lr_warmup_weight = min((config.epoch + 1) / config.warmup_epoch_num, 1) # first 10 epoches use warmup
+        self.lr_decay_weight = min(1, (config.total_epoch_num - config.epoch) / (config.total_epoch_num - config.warmup_epoch_num))
         # self.lr_warmup_weight = 1
         self.optimizer = torch.optim.AdamW([
-            {'params':self.encoder.parameters(), 'lr':3e-5 * self.lr_warmup_weight, 'weight_decay':0.01},
+            {'params':self.encoder.parameters(), 'lr':3e-5 * self.lr_warmup_weight * self.lr_decay_weight, 'weight_decay':0.01},
         ])
         self.optimizer.zero_grad()
         self.scaler = torch.cuda.amp.GradScaler()
@@ -199,9 +217,13 @@ class HPTModel(nn.Module):
         self.optimizer.zero_grad()
         self.activate_training_mode()
         batch_steps = 0
+        record_losses = []
+        if self.config.nohup:
+            train_inputs = tqdm(train_inputs, total=len(train_inputs))
         for batch in train_inputs:
             batch_steps += 1
-            loss = self.encoder(batch, autocast = True)
+            loss, rec_l = self.encoder(batch, autocast = True)
+            record_losses.append(rec_l)
             loss /= args.accumulation_step
             self.scaler.scale(loss).backward()
             if (batch_steps + 1) % args.accumulation_step == 0:
@@ -217,7 +239,6 @@ class HPTModel(nn.Module):
         '''
         develop on the dev set to get best threshold for test set
         '''
-        logger.log('evaluating.')
         self.activate_inference_mode()
 
         preds = {'extractive': [], 'yes': [], 'no': [], 'condition': []}
@@ -391,7 +412,7 @@ class HPTModel(nn.Module):
             A = evaluate('output',os.path.join(args.data_root, 'dev.json'))
             metric_now = A['total']['EM'] + A['total']['F1']
             logger.log('metric: ' + str(A))
-            logger.log('total: %.4f\n'%(metric_now))
+            logger.log('total: %.6f'%(metric_now))
             
         return metric_now
 
@@ -433,7 +454,8 @@ if __name__ == '__main__':
         model = HPTModel(config)
         if start > 0:
             model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
-        logger.log('training.') 
+        else:
+            print('initializing model from longformer-base-4096')
         model.train(train_inputs)
 
     elif args.mode == 'inference':
@@ -450,7 +472,6 @@ if __name__ == '__main__':
 
         logger.log(f'epoch_{start + 1}')
         metric = model.answering_questions(train_inputs, dev_inputs, tokenizer)
-        logger.log('metric: ' + str(metric))
         try:
             with open(os.path.join(args.model_root, 'result.txt'), 'r') as file:
                 best_performance = float(file.readlines()[0])

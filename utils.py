@@ -262,6 +262,7 @@ class TxtNode:
         return newnode
 
     
-
+def to_numpy(*args):
+    return [arg.detach().cpu().tolist() for arg in args]
         
     

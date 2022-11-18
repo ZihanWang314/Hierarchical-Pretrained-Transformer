@@ -101,103 +101,108 @@ def recover_index_from_node(node):
     text = reduce(lambda x, y: x + y, text)
     return text, HTMLelement_index
 
-from time import time
 
-def contrastive_sampling(input_ids):
-    start_tokens, document_tokens, end_tokens = get_grouped_tokens(input_ids)
-    base_node = create_node_from_document(document_tokens)
-    for i in range(len(base_node.get_nodes_list()) // 20):
-        base_node = repeat_a_node(base_node)
+class ContrastiveSampler:
+    def __init__(self, config):
+        self.config = config
 
-    for i in range(len(base_node.get_nodes_list()) // 20):
-        base_node = remove_a_node(base_node)
+    def contrastive_sampling(self, input_ids):
+        start_tokens, document_tokens, end_tokens = get_grouped_tokens(input_ids)
+        base_node = create_node_from_document(document_tokens)
+        if self.config.contrastive_mode == 'simcse':
+            pass
+        elif self.config.contrastive_mode == 'hpt':
+            for i in range(len(base_node.get_nodes_list()) // 20):
+                base_node = repeat_a_node(base_node)
 
-    for i in range(len(base_node.get_nodes_list()) // 5):
-        base_node = reorder_a_node(base_node)
+            for i in range(len(base_node.get_nodes_list()) // 20):
+                base_node = remove_a_node(base_node)
 
-    for i in range(len(base_node.get_nodes_list()) // 10):
-        base_node = mask_a_node(base_node)
+            for i in range(len(base_node.get_nodes_list()) // 5):
+                base_node = reorder_a_node(base_node)
 
-    document_tokens, HTMLelement_index = recover_index_from_node(base_node)
-    HTMLelement_index = torch.tensor(HTMLelement_index)
-    document_tokens = start_tokens + document_tokens + end_tokens
-    HTMLelement_index[:, 1] += len(start_tokens)
+            for i in range(len(base_node.get_nodes_list()) // 10):
+                base_node = mask_a_node(base_node)
 
-    return document_tokens, HTMLelement_index
+        document_tokens, HTMLelement_index = recover_index_from_node(base_node)
+        HTMLelement_index = torch.tensor(HTMLelement_index)
+        document_tokens = start_tokens + document_tokens + end_tokens
+        HTMLelement_index[:, 1] += len(start_tokens)
 
-def generate_contrastive_sample(sample):
-    input_ids = sample[0]
-    global_mask = sample[1]
-    attention_mask = sample[2]
-    mask_HTMLelements = sample[3]
-    mask_label_HTMLelements = sample[4]
-    mask_answer_span = sample[5]
-    qa_id = sample[6]
-    mask_label_condition = sample[7]
+        return document_tokens, HTMLelement_index
 
-    new_input, contrastive_pairs = contrastive_sampling(input_ids)
-    new_input_ids = torch.tensor([i[0] for i in new_input])
-    arrangement_index = torch.tensor([i[1] for i in new_input])
+    def generate_contrastive_sample(self, sample):
+        input_ids = sample[0]
+        global_mask = sample[1]
+        attention_mask = sample[2]
+        mask_HTMLelements = sample[3]
+        mask_label_HTMLelements = sample[4]
+        mask_answer_span = sample[5]
+        qa_id = sample[6]
+        mask_label_condition = sample[7]
 
-    global_mask = global_mask[arrangement_index]
-    attention_mask = attention_mask[arrangement_index]
-    mask_HTMLelements = mask_HTMLelements[arrangement_index]
-    mask_label_HTMLelements = mask_label_HTMLelements[arrangement_index]
-    mask_answer_span = mask_answer_span[arrangement_index]
-    mask_label_condition = mask_label_condition[arrangement_index]
+        new_input, contrastive_pairs = self.contrastive_sampling(input_ids)
+        new_input_ids = torch.tensor([i[0] for i in new_input])
+        arrangement_index = torch.tensor([i[1] for i in new_input])
 
-    text_length = new_input_ids.shape[0]
-    new_input_ids = torch.concat((new_input_ids, torch.ones(4000 - text_length, dtype = torch.long)))
-    global_mask = torch.concat((global_mask, torch.zeros(4000 - text_length, dtype = torch.bool)))
-    attention_mask = torch.concat((attention_mask, torch.zeros(4000 - text_length, dtype = torch.bool)))
-    mask_HTMLelements = torch.concat((mask_HTMLelements, torch.zeros(4000 - text_length, dtype = torch.bool)))
-    mask_label_HTMLelements = torch.concat((mask_label_HTMLelements, torch.zeros((4000 - text_length, 3), dtype = torch.long)))
-    mask_answer_span = torch.concat((mask_answer_span, torch.zeros((4000 - text_length, 2), dtype = torch.long)))
-    mask_label_condition = torch.concat((mask_label_condition, torch.zeros((4000 - text_length, 5, 2), dtype = torch.bool)))
+        global_mask = global_mask[arrangement_index]
+        attention_mask = attention_mask[arrangement_index]
+        mask_HTMLelements = mask_HTMLelements[arrangement_index]
+        mask_label_HTMLelements = mask_label_HTMLelements[arrangement_index]
+        mask_answer_span = mask_answer_span[arrangement_index]
+        mask_label_condition = mask_label_condition[arrangement_index]
 
-    new_sample = [new_input_ids, global_mask, attention_mask, mask_HTMLelements, mask_label_HTMLelements, \
-        mask_answer_span, qa_id, mask_label_condition]
-    return new_sample, contrastive_pairs
+        text_length = new_input_ids.shape[0]
+        new_input_ids = torch.concat((new_input_ids, torch.zeros(4000 - text_length, dtype = torch.long)))
+        global_mask = torch.concat((global_mask, torch.zeros(4000 - text_length, dtype = torch.bool)))
+        attention_mask = torch.concat((attention_mask, torch.zeros(4000 - text_length, dtype = torch.bool)))
+        mask_HTMLelements = torch.concat((mask_HTMLelements, torch.zeros(4000 - text_length, dtype = torch.bool)))
+        mask_label_HTMLelements = torch.concat((mask_label_HTMLelements, torch.zeros((4000 - text_length, 3), dtype = torch.long)))
+        mask_answer_span = torch.concat((mask_answer_span, torch.zeros((4000 - text_length, 2), dtype = torch.long)))
+        mask_label_condition = torch.concat((mask_label_condition, torch.zeros((4000 - text_length, 5, 2), dtype = torch.bool)))
+
+        new_sample = [new_input_ids, global_mask, attention_mask, mask_HTMLelements, mask_label_HTMLelements, \
+            mask_answer_span, qa_id, mask_label_condition]
+        return new_sample, contrastive_pairs
 
 
-def batch_generate_contrastive_sample(batch):
-    input_ids = []
-    global_mask = []
-    attention_mask = []
-    mask_HTMLelements = []
-    mask_label_HTMLelements = []
-    mask_answer_span = []
-    qa_id = []
-    mask_label_condition = []
-    contrastive_pairs = []
+    def batch_generate(self, batch):
+        input_ids = []
+        global_mask = []
+        attention_mask = []
+        mask_HTMLelements = []
+        mask_label_HTMLelements = []
+        mask_answer_span = []
+        qa_id = []
+        mask_label_condition = []
+        contrastive_pairs = []
 
-    for i in range(len(batch[0])):
+        for i in range(len(batch[0])):
+            sample = [batch[0][i].cpu(), batch[1][i].cpu(), batch[2][i].cpu(), batch[3][i].cpu(), \
+                batch[4][i].cpu(), batch[5][i].cpu(), batch[6][i].cpu(), batch[7][i].cpu()]
+            new_sample, contrastive_pair = self.generate_contrastive_sample(sample)
+            input_ids += [sample[0], new_sample[0]]
+            global_mask += [sample[1], new_sample[1]]
+            attention_mask += [sample[2], new_sample[2]]
+            mask_HTMLelements += [sample[3], new_sample[3]]
+            mask_label_HTMLelements += [sample[4], new_sample[4]]
+            mask_answer_span += [sample[5], new_sample[5]]
+            qa_id += [sample[6], new_sample[6]]
+            mask_label_condition += [sample[7], new_sample[7]]
+            contrastive_pairs.append(contrastive_pair)
+        
+        device = batch[i][0].device
+        input_ids = torch.stack(input_ids).to(device)
+        global_mask = torch.stack(global_mask).to(device)
+        attention_mask = torch.stack(attention_mask).to(device)
+        mask_HTMLelements = torch.stack(mask_HTMLelements).to(device)
+        mask_label_HTMLelements = torch.stack(mask_label_HTMLelements).to(device)
+        mask_answer_span = torch.stack(mask_answer_span).to(device)
+        qa_id = torch.stack(qa_id).to(device)
+        mask_label_condition = torch.stack(mask_label_condition).to(device)
+        contrastive_pairs = [i.to(device) for i in contrastive_pairs]
 
-        sample = [batch[0][i].cpu(), batch[1][i].cpu(), batch[2][i].cpu(), batch[3][i].cpu(), \
-            batch[4][i].cpu(), batch[5][i].cpu(), batch[6][i].cpu(), batch[7][i].cpu()]
-        new_sample, contrastive_pair = generate_contrastive_sample(sample)
-        input_ids += [sample[0], new_sample[0]]
-        global_mask += [sample[1], new_sample[1]]
-        attention_mask += [sample[2], new_sample[2]]
-        mask_HTMLelements += [sample[3], new_sample[3]]
-        mask_label_HTMLelements += [sample[4], new_sample[4]]
-        mask_answer_span += [sample[5], new_sample[5]]
-        qa_id += [sample[6], new_sample[6]]
-        mask_label_condition += [sample[7], new_sample[7]]
-        contrastive_pairs.append(contrastive_pair)
-    
-    device = batch[i][0].device
-    input_ids = torch.stack(input_ids).to(device)
-    global_mask = torch.stack(global_mask).to(device)
-    attention_mask = torch.stack(attention_mask).to(device)
-    mask_HTMLelements = torch.stack(mask_HTMLelements).to(device)
-    mask_label_HTMLelements = torch.stack(mask_label_HTMLelements).to(device)
-    mask_answer_span = torch.stack(mask_answer_span).to(device)
-    qa_id = torch.stack(qa_id).to(device)
-    mask_label_condition = torch.stack(mask_label_condition).to(device)
-    contrastive_pairs = [i.to(device) for i in contrastive_pairs]
-
-    batch_new = [input_ids, global_mask, attention_mask, mask_HTMLelements, mask_label_HTMLelements, mask_answer_span, qa_id, mask_label_condition]
-    return batch_new, contrastive_pairs
+        batch_new = [input_ids, global_mask, attention_mask, mask_HTMLelements, mask_label_HTMLelements, mask_answer_span, qa_id, mask_label_condition]
+        return batch_new, contrastive_pairs
 
 
