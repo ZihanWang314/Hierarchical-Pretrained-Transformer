@@ -3,12 +3,8 @@ from utils import Tokenizer
 tokenizer = Tokenizer('../condqa_old/model')
 
 from utils import TxtNode, get_level
-import pickle
-from functools import reduce
 import numpy
 import random
-from copy import deepcopy
-import os
 
 
 def split_tokens(tokens):

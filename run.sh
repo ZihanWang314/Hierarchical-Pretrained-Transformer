@@ -3,19 +3,19 @@
 data_root=../condqa_old/data
 model_root=../condqa_old/model
 rm "${model_root}/result.txt"
-logdir=1119_normal_run.txt
+logdir=1120_test.txt
 
 for i in {0..49..1}
 do
     echo "training..."
     python -m torch.distributed.run \
-        --nnodes=1 --nproc_per_node=4 --node_rank=0 --master_port=6005 train.py \
+        --nnodes=1 --nproc_per_node=4 --node_rank=0 --master_port=6005 main.py \
         --mode=train --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
         --logdir=${logdir} --accumulation_step=4 --train_condition \
         --warmup_epoch_num=5 --total_epoch_num=50
 
     echo "evaluating..."
-    python train.py \
+    python main.py \
         --mode=inference --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
         --logdir=${logdir}    
 done
@@ -31,13 +31,13 @@ for i in {0..49..1}
 do
     echo "training..."
     python -m torch.distributed.run \
-        --nnodes=1 --nproc_per_node=4 --node_rank=0 --master_port=6005 train.py \
+        --nnodes=1 --nproc_per_node=4 --node_rank=0 --master_port=6005 main.py \
         --mode=train --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
         --logdir=${logdir} --accumulation_step=4 --train_condition --contrastive_learning \
         --warmup_epoch_num=5 --total_epoch_num=50 --contrastive_mode=hpt
 
     echo "evaluating..."
-    python train.py \
+    python main.py \
         --mode=inference --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
         --logdir=${logdir}
         

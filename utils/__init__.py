@@ -9,7 +9,8 @@ import numpy as np
 import sklearn.metrics as metrics
 import os
 from random import shuffle
-from evaluate import evaluate
+from utils.evaluate import evaluate
+from utils.evaluate import load_answers, compute_metrics
 import argparse
 
 
@@ -29,6 +30,10 @@ class Logger:
         output = self.sep.join(output_list)
         with open(self.path, 'a', encoding = 'utf-8') as file:
             file.write(output)
+
+def init_logger(path, sep=' ', end='\n'):
+    logger = Logger(path, sep, end)
+    return logger
 
 def check_and_transform_long_example(qa):
     return_qas = []
@@ -261,13 +266,25 @@ class TxtNode:
             child.parent = newnode
         return newnode
 
+
+def dynamic_padding(attn_masks, *args):
+    input_lengths = attn_masks.count_nonzero(dim = 1)
+    length = input_lengths.max()
+    return [attn_masks[:, :length]] + [i[:, :length] for i in args]
+
     
+def analyze_binary_classification(label_answer_sentence, pred_answer_sentence):
+    fpr, tpr, thresholds = metrics.roc_curve(label_answer_sentence, pred_answer_sentence, pos_label = 1)
+    auc = metrics.auc(fpr, tpr)
+    p, r, thresholds = metrics.precision_recall_curve(label_answer_sentence, pred_answer_sentence, pos_label = 1)
+    f1_score = torch.tensor(2 *p * r / (p + r + 0.00001))
+    return (f1_score.max(), auc, thresholds[f1_score.argmax()], p[f1_score.argmax()], r[f1_score.argmax()])
+
 def to_numpy(*args):
     return [arg.detach().cpu().tolist() for arg in args]
 
-from evaluate import load_answers, compute_metrics
 
-def compare(pred_file='output', ref_file='../condqa_old/data/dev.json',compare_file='compare'):
+def compare(pred_file='outputs/output', ref_file='../condqa_old/data/dev.json',compare_file='outputs/compare.out'):
   qid2predictions = load_answers(pred_file)
   qid2references = load_answers(ref_file)
   with open(compare_file, 'w') as file:

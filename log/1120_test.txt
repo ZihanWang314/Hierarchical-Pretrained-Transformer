@@ -1,0 +1,26 @@
+epoch_1 
+extractive 
+f1_score:0.0194, auc:0.4963, threshold for best_f1:0.7490, prec:0.0119, recall:0.0531 
+yes 
+f1_score:0.4747, auc:0.4838, threshold for best_f1:0.5244, prec:0.3230, recall:0.8952 
+no 
+f1_score:0.2918, auc:0.5511, threshold for best_f1:0.7520, prec:0.1806, recall:0.7593 
+condition 
+f1_score:0.0081, auc:0.5526, threshold for best_f1:1.0000, prec:0.0041, recall:0.2286 
+testing on test inputs 
+metric: {'total': {'EM': 0.17650093195353556, 'EM_with_conditions': 0.12339369611376515, 'F1': 0.17888587209043033, 'F1_with_conditions': 0.12571734907873774}, 'yesno': {'EM': 0.3377815776696338, 'EM_with_conditions': 0.23193848526169983, 'F1': 0.3377815776696338, 'F1_with_conditions': 0.23193848526169983}, 'extractive': {'EM': 0.0, 'EM_with_conditions': 0.0, 'F1': 0.005310218273554731, 'F1_with_conditions': 0.005173758554821698}, 'conditional': {'EM': 0.26405654308467574, 'EM_with_conditions': 0.023809523809523808, 'F1': 0.2661115275026563, 'F1_with_conditions': 0.025587256735475333}} 
+total: 0.355387 
+achieving best result, now saving to model_best.pt 
+epoch_2 
+extractive 
+f1_score:0.0195, auc:0.4962, threshold for best_f1:0.7490, prec:0.0119, recall:0.0531 
+yes 
+f1_score:0.4747, auc:0.4836, threshold for best_f1:0.5244, prec:0.3230, recall:0.8952 
+no 
+f1_score:0.2918, auc:0.5509, threshold for best_f1:0.7520, prec:0.1806, recall:0.7593 
+condition 
+f1_score:0.0081, auc:0.5523, threshold for best_f1:1.0000, prec:0.0041, recall:0.2286 
+testing on test inputs 
+metric: {'total': {'EM': 0.17650093195353553, 'EM_with_conditions': 0.12339369611376515, 'F1': 0.1789485287320343, 'F1_with_conditions': 0.12578000572034176}, 'yesno': {'EM': 0.3377815776696338, 'EM_with_conditions': 0.23193848526169983, 'F1': 0.3377815776696338, 'F1_with_conditions': 0.23193848526169983}, 'extractive': {'EM': 0.0, 'EM_with_conditions': 0.0, 'F1': 0.005449727202126159, 'F1_with_conditions': 0.005313267483393127}, 'conditional': {'EM': 0.26405654308467574, 'EM_with_conditions': 0.023809523809523808, 'F1': 0.2661115275026563, 'F1_with_conditions': 0.025587256735475333}} 
+total: 0.355449 
+achieving best result, now saving to model_best.pt 

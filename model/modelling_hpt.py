@@ -1,45 +1,16 @@
 
 import torch
-from transformers import LongformerModel, LongformerConfig, LongformerTokenizerFast
+from transformers import LongformerModel
 import json
+from utils import Tokenizer
 from tqdm import tqdm
 from torch import nn
-from copy import copy
-import numpy as np
-import sklearn.metrics as metrics
 import os
-from random import shuffle
-from evaluate import evaluate
-import argparse
-from utils import Logger, input_to_batch, Tokenizer, ReIndexer, to_numpy
-from contrastive_learning import ContrastiveSampler
-os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3'
+import utils
+from utils.evaluate import evaluate
+from utils import ReIndexer, to_numpy, analyze_binary_classification, dynamic_padding, Logger
+from model.contrastive_learning import ContrastiveSampler
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--logdir', default='defaultlog.txt', type=str)
-parser.add_argument('--accumulation_step', default=4, type=int)
-parser.add_argument("--local_rank", default=os.getenv('LOCAL_RANK', -1), type=int)
-parser.add_argument('--mode', type=str)
-parser.add_argument('--epoch', type=int)
-parser.add_argument('--data_root', type=str)
-parser.add_argument('--model_root', type=str)
-
-#model argument
-parser.add_argument('--train_condition', action='store_true')
-parser.add_argument('--contrastive_learning', action='store_true')
-parser.add_argument('--warmup_epoch_num', type=int, default=10)
-parser.add_argument('--total_epoch_num', type=int, default=100)
-parser.add_argument('--contrastive_mode', type=str, default='hpt')
-parser.add_argument('--nohup', action='store_true')
-
-
-args = parser.parse_args()
-
-assert args.contrastive_mode in ['hpt', 'simcse'], 'contrastive mode definition assertion'
-if args.contrastive_learning:
-    print(f'using {args.contrastive_mode} for contrastive learning')
-
-logger = Logger(args.logdir)
 
 class ConditionCalculator(nn.Module):
     def __init__(self):
@@ -58,6 +29,8 @@ class HPTEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
+        global logger
+        logger = Logger(config.logdir)
         # self.transformer_config = LongformerConfig.from_pretrained('allenai/longformer-base-4096')
         # self.transformer = LongformerModel(self.transformer_config)
         self.transformer = LongformerModel.from_pretrained('allenai/longformer-base-4096')
@@ -203,15 +176,17 @@ class HPTModel(nn.Module):
         ])
         self.optimizer.zero_grad()
         self.scaler = torch.cuda.amp.GradScaler()
+        self.tokenizer = Tokenizer(config.model_root)
+
             
     def activate_training_mode(self):
         # train with DDP
         if self.mode != None:
             self.activate_normal_mode()
         self.to('cpu')
-        self.cuda(args.local_rank)
+        self.cuda(self.config.local_rank)
         self.encoder = torch.nn.parallel.DistributedDataParallel(
-            self.encoder, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=True
+            self.encoder, device_ids=[self.config.local_rank], output_device=self.config.local_rank, find_unused_parameters=True
             )
         self.encoder.module.transformer.train()
         self.mode = 'train'
@@ -246,16 +221,16 @@ class HPTModel(nn.Module):
             batch_steps += 1
             loss, rec_l = self.encoder(batch, autocast = True)
             record_losses.append(rec_l)
-            loss /= args.accumulation_step
+            loss /= self.config.accumulation_step
             self.scaler.scale(loss).backward()
-            if (batch_steps + 1) % args.accumulation_step == 0:
+            if (batch_steps + 1) % self.config.accumulation_step == 0:
                 self.scaler.unscale_(self.optimizer)
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
                 self.optimizer.zero_grad()
                 print(torch.tensor(record_losses).nanmean(0))
         self.activate_normal_mode()
-        torch.save(self.state_dict(), os.path.join(args.model_root, 'model_current.pt'))
+        torch.save(self.state_dict(), os.path.join(self.config.model_root, 'model_current.pt'))
 
 
     def test(self, dev_inputs):
@@ -327,12 +302,15 @@ class HPTModel(nn.Module):
         thresholds = []
         for name in ['extractive', 'yes', 'no', 'condition']:
             logger.log(name)
-            _, threshold = analyze_binary_classification(labels[name], preds[name])
+            f1, auc, threshold, p, r = analyze_binary_classification(labels[name], preds[name])
+            logger.log('f1_score:%.4f, auc:%.4f, threshold for best_f1:%.4f, prec:%.4f, recall:%.4f'%\
+                (f1, auc, threshold, p, r))
+
             thresholds.append(threshold)
 
         return thresholds
 
-    def answering_questions(self, test_inputs, tokenizer):
+    def answering_questions(self, test_inputs):
         '''
         making inference on test set
         '''
@@ -387,14 +365,14 @@ class HPTModel(nn.Module):
                             index_pred_answer_start = torch.argmax(pred_answer_span[0])
                             index_pred_answer_end = torch.argmax(pred_answer_span[1])
                             prob = prob_pred_answers[index_answer, 0]
-                            pred_answer = tokenizer.decode(text_ids[index_pred_answer_start + range_[0]: index_pred_answer_end + range_[0] + 1])
+                            pred_answer = self.tokenizer.decode(text_ids[index_pred_answer_start + range_[0]: index_pred_answer_end + range_[0] + 1])
 
                             answer_sentence_index = (indexer.index[0] == range_[0]).nonzero()[0][0]
                             pred_condition_index = pred_condition[answer_sentence_index]
                             pred_condition_start_end = range_answer_span[pred_condition_index]
                             pred_conditions = []
                             for start, end in pred_condition_start_end:
-                                pred_conditions.append(tokenizer.decode(text_ids[start: end + 1]))
+                                pred_conditions.append(self.tokenizer.decode(text_ids[start: end + 1]))
 
 
                             if pred_answer != '':
@@ -439,80 +417,9 @@ class HPTModel(nn.Module):
                 output_real.append({'id':'dev-'+str(k), 'answers':[]})
 
             json.dump(output_real, open('output','w'))
-            A = evaluate('output',os.path.join(args.data_root, 'dev.json'))
+            A = evaluate('output',os.path.join(self.config.data_root, 'dev.json'))
             metric_now = A['total']['EM'] + A['total']['F1']
             logger.log('metric: ' + str(A))
             logger.log('total: %.6f'%(metric_now))
             
         return metric_now
-
-
-
-
-def dynamic_padding(attn_masks, *args):
-    input_lengths = attn_masks.count_nonzero(dim = 1)
-    length = input_lengths.max()
-    return [attn_masks[:, :length]] + [i[:, :length] for i in args]
-
-
-    
-def analyze_binary_classification(label_answer_sentence, pred_answer_sentence):
-    fpr, tpr, thresholds = metrics.roc_curve(label_answer_sentence, pred_answer_sentence, pos_label = 1)
-    auc = metrics.auc(fpr, tpr)
-    p, r, thresholds = metrics.precision_recall_curve(label_answer_sentence, pred_answer_sentence, pos_label = 1)
-    f1_score = torch.tensor(2 *p * r / (p + r + 0.00001))
-    logger.log('f1_score:%.4f, auc:%.4f, threshold for best_f1:%.4f, prec:%.4f, recall:%.4f'%\
-        (f1_score.max(), auc, thresholds[f1_score.argmax()], p[f1_score.argmax()], r[f1_score.argmax()]))
-    return (f1_score.max() + auc, thresholds[f1_score.argmax()])
-
-
-def main():
-    tokenizer = Tokenizer(args.model_root)
-    # train_inputs = convert_examples_to_inputs(train_examples)
-    # dev_inputs = convert_examples_to_inputs(dev_examples)
-    # torch.save(train_inputs, 'data/train_inputs')
-    # torch.save(dev_inputs, 'data/dev_inputs')
-    start = args.epoch
-    if args.mode == 'train':
-        train_inputs = torch.load(os.path.join(args.data_root, 'train_inputs'))
-        torch.cuda.set_device(args.local_rank)
-        torch.distributed.init_process_group(backend="nccl")
-        shuffle(train_inputs)
-        train_inputs = input_to_batch(train_inputs, batch_size = 1, distributed = True)
-        config = args
-        model = HPTModel(config)
-        if start > 0:
-            model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
-        else:
-            print('initializing model from longformer-base-4096')
-            torch.save(model.state_dict(), os.path.join(args.model_root, 'model_current.pt'))
-        model.train(train_inputs)
-
-    elif args.mode == 'inference':
-        dev_inputs = torch.load(os.path.join(args.data_root, 'dev_inputs'))
-        dev_inputs = [[j.cuda() for j in i] for i in dev_inputs] 
-        dev_inputs = input_to_batch(dev_inputs, batch_size = 6, distributed = False) 
-        config = args
-        model = HPTModel(config)
-        model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
-
-        logger.log(f'epoch_{start + 1}')
-        metric = model.answering_questions(dev_inputs, tokenizer)
-        try:
-            with open(os.path.join(args.model_root, 'result.txt'), 'r') as file:
-                best_performance = float(file.readlines()[0])
-        except:
-            best_performance = 0
-        if metric > best_performance:
-            model.activate_normal_mode()
-            torch.save(model.state_dict(), os.path.join(args.model_root, 'model_best.pt'))
-            logger.log('achieving best result, now saving to model_best.pt')
-            with open(os.path.join(args.model_root, 'result.txt'), 'w') as file:
-                file.write(str(metric))
-
-
-if __name__ == '__main__':
-    # try:
-        main()
-    # except:
-    #     logger.log('something went wrong with your code. GO CHECK UR CODE!!')
