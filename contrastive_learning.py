@@ -71,9 +71,12 @@ def repeat_a_node(base_node):
 def remove_a_node(base_node):
     nodes = base_node.get_nodes_list()
     nodes = [node for node in nodes if node.parent != None]
-    node = random.choice(nodes)
-    parent = node.parent
-    parent.children.remove(node)
+    if len(nodes) <= 1:
+        return base_node
+    else:
+        node = random.choice(nodes)
+        parent = node.parent
+        parent.children.remove(node)
     return base_node
 
 def mask_a_node(base_node):
@@ -94,12 +97,16 @@ def reorder_a_node(base_node):
 def recover_index_from_node(node):
     nodes = node.get_nodes_list()
     text = [i.text for i in nodes][1:]
+    real_text = []
+    for i in text:
+        real_text += i
+
     origin_HTMLelement_index = [i[0][1] for i in text]
     text_lengths = [len(i) for i in text]
     generated_HTMLelement_index = [0] + numpy.cumsum(text_lengths)[:-1].tolist()
     HTMLelement_index = list(zip(origin_HTMLelement_index, generated_HTMLelement_index))
-    text = reduce(lambda x, y: x + y, text)
-    return text, HTMLelement_index
+    
+    return real_text, HTMLelement_index
 
 
 class ContrastiveSampler:
@@ -117,6 +124,8 @@ class ContrastiveSampler:
 
             for i in range(len(base_node.get_nodes_list()) // 20):
                 base_node = remove_a_node(base_node)
+                if len(base_node.children) == 1: # stop removing
+                    break
 
             for i in range(len(base_node.get_nodes_list()) // 5):
                 base_node = reorder_a_node(base_node)

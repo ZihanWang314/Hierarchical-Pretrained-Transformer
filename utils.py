@@ -264,5 +264,20 @@ class TxtNode:
     
 def to_numpy(*args):
     return [arg.detach().cpu().tolist() for arg in args]
-        
+
+from evaluate import load_answers, compute_metrics
+
+def compare(pred_file='output', ref_file='../condqa_old/data/dev.json',compare_file='compare'):
+  qid2predictions = load_answers(pred_file)
+  qid2references = load_answers(ref_file)
+  with open(compare_file, 'w') as file:
+      pass
+  f1s = 0
+  for qid in qid2references.keys():
+    em, conditional_em, f1, conditional_f1 = compute_metrics(
+    qid2predictions[qid], qid2references[qid])
+    f1s += f1
+    with open(compare_file, 'a') as file:
+      file.write(str([qid, f1, [i[0] for i in qid2predictions[qid]], [i[0] for i in qid2references[qid]]]) + '\n')
+  print(f1s)
     

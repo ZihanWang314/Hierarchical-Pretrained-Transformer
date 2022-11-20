@@ -36,7 +36,8 @@ parser.add_argument('--nohup', action='store_true')
 args = parser.parse_args()
 
 assert args.contrastive_mode in ['hpt', 'simcse'], 'contrastive mode definition assertion'
-print(f'using {args.contrastive_mode} for contrastive learning')
+if args.contrastive_learning:
+    print(f'using {args.contrastive_mode} for contrastive learning')
 
 logger = Logger(args.logdir)
 
@@ -61,10 +62,10 @@ class HPTEncoder(nn.Module):
         # self.transformer = LongformerModel(self.transformer_config)
         self.transformer = LongformerModel.from_pretrained('allenai/longformer-base-4096')
         self.transformer.resize_token_embeddings(50282)
-        self.ans_weight = 0.6
-        self.span_weight = 0.2
-        self.condition_weight = 0.0
-        self.contrastive_weight = 0.2
+        self.ans_weight = 1
+        self.span_weight = 1
+        self.condition_weight = 0.00
+        self.contrastive_weight = 0.5 # it's ok they don't sum to be 1 because of adam
         self.ans_probe = nn.Sequential(nn.Linear(768, 3), nn.Sigmoid())
         self.span_probe = nn.Sequential(nn.Linear(768, 2), nn.Sigmoid())
         self.condition_calculator = ConditionCalculator()
@@ -77,12 +78,30 @@ class HPTEncoder(nn.Module):
         return the weighted loss considering the pos-neg distribution in target data
         """
         if target.shape[0] == 0:
-            return torch.tensor(0.)
+            return torch.tensor(torch.nan)
         x = target.shape[0]/target.count_nonzero()/2
         y = target.shape[0]/(target.shape[0]-target.count_nonzero())/2
         tensor = torch.where(target == 1, x, y)
         loss_fn = torch.nn.BCELoss(weight=tensor)
         return loss_fn(input, target)
+
+    # def weighted_loss(self, input, target):
+    #     """
+    #     return the weighted loss considering the pos-neg distribution in target data, new version
+    #     """
+    #     input, target = input.flatten(), target.flatten()
+    #     if target.shape[0] == 0:
+    #         return torch.tensor(0.)
+    #     if target.count_nonzero() != 0:
+    #         x = target.shape[0]/target.count_nonzero()/2
+    #         y = target.shape[0]/(target.shape[0]-target.count_nonzero())/2
+    #         advantage = x / y
+    #         loss_fn = torch.nn.BCELoss(weight = advantage)
+    #         return loss_fn(input, target) * y * x / (x ** 2 + y ** 2)
+    #     else:
+    #         return torch.tensor(torch.nan, device=input.device)
+    #             # loss_fn = torch.nn.BCELoss()
+    #             # return loss_fn(input, target)
 
     def contrastive_loss(self, last_hiddens, contrastive_pairs):
         loss = []
@@ -153,18 +172,21 @@ class HPTEncoder(nn.Module):
         ans_indicator = indexer.re_index(ans_indicator)[:, :max_HTML_num].transpose(-2, -1)
         cond_indicator = indexer.re_index(cond_indicator)[:, :max_HTML_num].transpose(-2, -1)
         cond_indicator = cond_indicator.unsqueeze(2).repeat(1, 1, max_HTML_num, 1)# 1, 2, 3, 3
-        label_condition = torch.einsum('abcd,abc->acd',cond_indicator, ans_indicator)
+        label_condition = torch.einsum('abcd,abc->acd',cond_indicator, ans_indicator)# NOTE there might be some bugs because never see 1
         mask_r = torch.einsum('ab,ac->abc', mask_r, mask_r)
         pred_condition = pred_condition[mask_r!=0]
         label_condition = label_condition[mask_r!=0]
         loss_condition = self.weighted_loss(pred_condition, label_condition)
-        
-        loss_total = self.ans_weight * loss_extractive + self.span_weight * loss_span + self.condition_weight * loss_condition
+        loss_total = self.ans_weight * loss_extractive + \
+            self.span_weight * loss_span + \
+                self.condition_weight * loss_condition
         if self.config.contrastive_learning:
             last_hidden_resized = last_hidden_all.reshape(last_hidden_all.shape[0] // 2, 2, last_hidden_all.shape[1], last_hidden_all.shape[2])
             contrastive_loss = self.contrastive_loss(last_hidden_resized, contrastive_pairs)
-            loss_total += self.contrastive_weight + contrastive_loss
-        return loss_total, to_numpy(loss_extractive, loss_span, contrastive_loss)
+            loss_total += self.contrastive_weight * contrastive_loss * (loss_extractive.detach() / contrastive_loss.detach()) # contrastive loss will be normalized
+            return loss_total, to_numpy(loss_extractive, loss_span, contrastive_loss)
+        return loss_total, to_numpy(loss_extractive, loss_span)
+
 
 
 class HPTModel(nn.Module):
@@ -200,7 +222,7 @@ class HPTModel(nn.Module):
             self.activate_normal_mode()
         self.to('cuda:0')
         self.encoder.transformer = torch.nn.DataParallel(self.encoder.transformer, device_ids=[0,1,2,3])
-        self.encoder.transformer.eval()
+        self.encoder.eval()
         self.mode = 'eval'
 
     def activate_normal_mode(self):
@@ -209,7 +231,7 @@ class HPTModel(nn.Module):
             self.encoder = self.encoder.module
         elif self.mode == 'eval':
             self.encoder.transformer = self.encoder.transformer.module
-        self.encoder.transformer.eval()
+        self.encoder.eval()
         self.to('cpu')
         self.mode = None
 
@@ -231,6 +253,7 @@ class HPTModel(nn.Module):
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
                 self.optimizer.zero_grad()
+                print(torch.tensor(record_losses).nanmean(0))
         self.activate_normal_mode()
         torch.save(self.state_dict(), os.path.join(args.model_root, 'model_current.pt'))
 
@@ -266,14 +289,18 @@ class HPTModel(nn.Module):
                     preds['extractive'] += pred
 
                     label = mask_label_HTMLelements[:, :, 1]
-                    pred = self.encoder.ans_probe(last_hidden)[:, :, 1][label != 0].tolist()
-                    label = ((label[label != 0] + 1) / 2).tolist()
+                    pred = self.encoder.ans_probe(last_hidden)[:, :, 1]
+                    pred[label == 0] -= 1000
+                    pred = pred.max(1).values.tolist()
+                    label = label.max(1).values.tolist()
                     labels['yes'] += label
                     preds['yes'] += pred
 
                     label = mask_label_HTMLelements[:, :, 2]
-                    pred = self.encoder.ans_probe(last_hidden)[:, :, 2][label != 0].tolist()
-                    label = ((label[label != 0] + 1) / 2).tolist()
+                    pred = self.encoder.ans_probe(last_hidden)[:, :, 2]
+                    pred[label == 0] -= 1000
+                    pred = pred.max(1).values.tolist()
+                    label = label.max(1).values.tolist()
                     labels['no'] += label
                     preds['no'] += pred
                         
@@ -305,14 +332,17 @@ class HPTModel(nn.Module):
 
         return thresholds
 
-    def answering_questions(self, dev_inputs, test_inputs, tokenizer):
+    def answering_questions(self, test_inputs, tokenizer):
         '''
         making inference on test set
         '''
         self.activate_inference_mode()
 
         softmax_layer = torch.nn.Softmax(dim = -1)
-        thre_ans, thre_yes, thre_no, thre_condition = self.test(dev_inputs)
+        # logger.log('testing on val inputs')
+        thre_ans, thre_yes, thre_no, thre_condition = self.test(test_inputs)#0.8, 0.8, 0.8, 1.0#self.test(dev_inputs) for test, try no threshold from data
+        logger.log('testing on test inputs')
+        # self.test(test_inputs)
         output = {}
         with torch.no_grad():
             with torch.cuda.amp.autocast():
@@ -436,7 +466,7 @@ def analyze_binary_classification(label_answer_sentence, pred_answer_sentence):
     return (f1_score.max() + auc, thresholds[f1_score.argmax()])
 
 
-if __name__ == '__main__':
+def main():
     tokenizer = Tokenizer(args.model_root)
     # train_inputs = convert_examples_to_inputs(train_examples)
     # dev_inputs = convert_examples_to_inputs(dev_examples)
@@ -445,7 +475,6 @@ if __name__ == '__main__':
     start = args.epoch
     if args.mode == 'train':
         train_inputs = torch.load(os.path.join(args.data_root, 'train_inputs'))
-        train_inputs = train_inputs[: len(train_inputs) // 10 * 8]
         torch.cuda.set_device(args.local_rank)
         torch.distributed.init_process_group(backend="nccl")
         shuffle(train_inputs)
@@ -456,22 +485,19 @@ if __name__ == '__main__':
             model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
         else:
             print('initializing model from longformer-base-4096')
+            torch.save(model.state_dict(), os.path.join(args.model_root, 'model_current.pt'))
         model.train(train_inputs)
 
     elif args.mode == 'inference':
-        train_inputs = torch.load(os.path.join(args.data_root, 'train_inputs'))
-        train_inputs = train_inputs[len(train_inputs) // 10 * 8: ]
         dev_inputs = torch.load(os.path.join(args.data_root, 'dev_inputs'))
-        train_inputs = [[j.cuda() for j in i] for i in train_inputs]
         dev_inputs = [[j.cuda() for j in i] for i in dev_inputs] 
-        train_inputs = input_to_batch(train_inputs, batch_size = 18, distributed = False)
-        dev_inputs = input_to_batch(dev_inputs, batch_size = 6, distributed = False)
+        dev_inputs = input_to_batch(dev_inputs, batch_size = 6, distributed = False) 
         config = args
         model = HPTModel(config)
         model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
 
         logger.log(f'epoch_{start + 1}')
-        metric = model.answering_questions(train_inputs, dev_inputs, tokenizer)
+        metric = model.answering_questions(dev_inputs, tokenizer)
         try:
             with open(os.path.join(args.model_root, 'result.txt'), 'r') as file:
                 best_performance = float(file.readlines()[0])
@@ -484,3 +510,9 @@ if __name__ == '__main__':
             with open(os.path.join(args.model_root, 'result.txt'), 'w') as file:
                 file.write(str(metric))
 
+
+if __name__ == '__main__':
+    # try:
+        main()
+    # except:
+    #     logger.log('something went wrong with your code. GO CHECK UR CODE!!')

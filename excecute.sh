@@ -1,52 +1,50 @@
 #!/usr/bin/env bash
 
-# these should be consistent with the setting in YAML config files
 data_root=../condqa_old/data
 model_root=../condqa_old/model
-
-
-logdir=cl_hpt.txt
-for i in {0..99..1}
-do
-    echo "training..."
-    python -m torch.distributed.run \
-        --nnodes=1 --nproc_per_node=4 --node_rank=0 --master_port=6005 train_answer.py \
-        --mode=train --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
-        --logdir=${logdir} --accumulation_step=4 --train_condition --contrastive_learning \
-        --warmup_epoch_num=10 --total_epoch_num=100 --contrastive_mode=hpt
-
-    echo "evaluating..."
-    python train_answer.py \
-        --mode=inference --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
-        --logdir=${logdir}
-        
-done
-
-rm "${model_root}/model_current.pt"
-cp "${model_root}/model_best.pt" "${model_root}/model_best_hptcl_nocondition.pt"
-rm "${model_root}/model_best.pt"
 rm "${model_root}/result.txt"
+logdir=1119_normal_run.txt
 
-
-logdir=cl_simcse.txt
-for i in {0..99..1}
+for i in {0..49..1}
 do
     echo "training..."
     python -m torch.distributed.run \
-        --nnodes=1 --nproc_per_node=4 --node_rank=0 --master_port=6005 train_answer.py \
+        --nnodes=1 --nproc_per_node=4 --node_rank=0 --master_port=6005 train.py \
         --mode=train --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
-        --logdir=${logdir} --accumulation_step=4 --train_condition --contrastive_learning \
-        --warmup_epoch_num=10 --total_epoch_num=100 --contrastive_mode=simcse
+        --logdir=${logdir} --accumulation_step=4 --train_condition \
+        --warmup_epoch_num=5 --total_epoch_num=50
 
     echo "evaluating..."
-    python train_answer.py \
+    python train.py \
+        --mode=inference --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
+        --logdir=${logdir}    
+done
+
+rm "${model_root}/model_current.pt"
+cp "${model_root}/model_best.pt" "${model_root}/model_best_nocl.pt"
+rm "${model_root}/model_best.pt"
+
+
+rm "${model_root}/result.txt"
+logdir=1119_cl_hpt.txt
+for i in {0..49..1}
+do
+    echo "training..."
+    python -m torch.distributed.run \
+        --nnodes=1 --nproc_per_node=4 --node_rank=0 --master_port=6005 train.py \
+        --mode=train --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
+        --logdir=${logdir} --accumulation_step=4 --train_condition --contrastive_learning \
+        --warmup_epoch_num=5 --total_epoch_num=50 --contrastive_mode=hpt
+
+    echo "evaluating..."
+    python train.py \
         --mode=inference --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
         --logdir=${logdir}
         
 done
 
 rm "${model_root}/model_current.pt"
-cp "${model_root}/model_best.pt" "${model_root}/model_best_simcse_nocondition.pt"
+cp "${model_root}/model_best.pt" "${model_root}/model_best_hpt_cl.pt"
 rm "${model_root}/model_best.pt"
 rm "${model_root}/result.txt"
 
