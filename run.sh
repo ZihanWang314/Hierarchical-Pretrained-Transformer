@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-data_root=../condqa_old/data
-model_root=../condqa_old/model
+data_root=../condqa_files/data
+model_root=../condqa_files/model
 rm "${model_root}/result.txt"
 logdir=1120_test.txt
 
