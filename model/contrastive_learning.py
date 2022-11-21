@@ -158,7 +158,7 @@ class ContrastiveSampler:
         mask_label_condition = mask_label_condition[arrangement_index]
 
         text_length = new_input_ids.shape[0]
-        new_input_ids = torch.concat((new_input_ids, torch.zeros(4000 - text_length, dtype = torch.long)))
+        new_input_ids = torch.concat((new_input_ids, torch.ones(4000 - text_length, dtype = torch.long)))
         global_mask = torch.concat((global_mask, torch.zeros(4000 - text_length, dtype = torch.bool)))
         attention_mask = torch.concat((attention_mask, torch.zeros(4000 - text_length, dtype = torch.bool)))
         mask_HTMLelements = torch.concat((mask_HTMLelements, torch.zeros(4000 - text_length, dtype = torch.bool)))

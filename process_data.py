@@ -136,117 +136,122 @@ def convert_examples_to_inputs(examples, tokenizer, args):
     inputs = []
 
     for qa in tqdm(examples_short, desc = 'converting examples to inputs..'):
-        input_head = tokenizer('Title: ' + qa['title'][0] + ' Document: ')
+        input_head = tokenizer('Title: ' + qa['title'][0] + ' Document: <yes><no>')
         input_tail = tokenizer(' Question: ' + qa['question'] + ' Scenario: ' + qa['scenario']) 
 
-        input_text = [input_head]
+        input_ids = [input_head]
         global_mask = [torch.ones(input_head.shape[0])]
-        index_HTMLelements = []
-        label_HTMLelements = []
+        index_heads = [len(input_head) - 2, len(input_head) - 1]
+
+        ### initialize for yes/no answers
+        label_evidence = [-1, -1]
+        label_answers = [-1, -1]
         label_answer_span = []
-        mask_label_condition = [torch.zeros(len(input_head), 5, 2)]
+        label_condition = [torch.zeros(5, 2), torch.zeros(5, 2)]
 
-        if {'yes', 'no'} & {i[0] for i in qa['answers']}:
-            yesno = True
-            yes_evidences = set()
-            no_evidences = set()
-            for answer in qa['answers']:
-                if answer[0] == 'yes':
-                    yes_evidences.update(set(answer[1]))
-                if answer[0] == 'no':
-                    no_evidences.update(set(answer[1]))
-            for evidence in qa['evidences']:
-                if evidence not in yes_evidences and evidence not in no_evidences:
-                    if 'yes' in {i[0] for i in qa['answers']}:
-                        yes_evidences.add(evidence)
-                    if 'no' in {i[0] for i in qa['answers']}:
-                        no_evidences.add(evidence)
-
-        else:
-            yesno = False
+        answers = [i[0] for i in qa['answers']]
+        if 'yes' in answers:
+            label_condition[0][answers.index('yes')][0] = 1
+            label_answers[0] = 1
+            label_answer_span.append([len(input_head) - 2, len(input_head) - 2])
+        if 'no' in answers:
+            label_condition[1][answers.index('no')][0] = 1
+            label_answers[1] = 1
+            label_answer_span.append([len(input_head) - 1, len(input_head) - 1])
         
+        ### iterate in article sentences
         for sentence in qa['document']:
             tokens = sentence['tokens']
             global_mask_sentence = torch.zeros(tokens.shape[0])
             global_mask_sentence[0] = 1.
             global_mask.append(global_mask_sentence)
-            index_HTMLelement = sum([tokens.shape[0] for tokens in input_text])
-            index_HTMLelements.append(index_HTMLelement)
-            has_answer = sentence['has_answer'] != -1
-            if yesno == True:
-                if sentence['string'] in yes_evidences:
-                    entails_yes = True
-                else:
-                    entails_yes = False
-                if sentence['string'] in no_evidences:
-                    entails_no = True
-                else:
-                    entails_no = False
-            else:
-                entails_yes = False
-                entails_no = False
-            label_HTMLelements.append([int(k) * 2 - 1 for k in (int(has_answer), entails_yes, entails_no)])
-            input_text.append(tokens)
-            if sentence['has_answer'] != -1:
-                label_answer_span.append([index_HTMLelement + sentence['answer_start'], index_HTMLelement + sentence['answer_end']])
-            else:
-                label_answer_span.append([-1, -1])
+            index_head = sum([token.shape[0] for token in input_ids])
+            index_heads.append(index_head)
 
-            mask_label_condition.append(torch.zeros(1, 5, 2))
+            if sentence['string'] in qa['evidences']:
+                label_evidence.append(1)
+            else:
+                label_evidence.append(-1)
+
+            if sentence['has_answer'] != -1:
+                label_answers.append(1)
+                label_answer_span.append([index_head + sentence['answer_start'], index_head + sentence['answer_end']])
+            else:
+                label_answers.append(-1)
+            
+            label_condition.append(torch.zeros(5, 2))
             if sentence['condition_of'] != -1:
-                mask_label_condition[-1][0, sentence['condition_of'], 1] = 1
+                label_condition[-1][sentence['condition_of'], 1] = 1
             if sentence['has_answer'] != -1:
-                mask_label_condition[-1][0, sentence['has_answer'], 0] = 1
-            mask_label_condition.append(torch.zeros(len(tokens) - 1, 5, 2))
-        
-        input_text.append(input_tail)
+                label_condition[-1][sentence['has_answer'], 0] = 1
+
+            input_ids.append(tokens)
+
+        input_ids.append(input_tail)
         global_mask.append(torch.ones(input_tail.shape[0]))
-        input_text= torch.concat(input_text, dim = 0)
-        global_mask = torch.concat(global_mask, dim = 0)
-        mask_HTMLelements = torch.zeros(4000)
-        for i in index_HTMLelements:
-            mask_HTMLelements[i] = 1
-        mask_label_HTMLelements = torch.zeros(4000, 3)
-        label_HTMLelements = torch.tensor(label_HTMLelements, dtype = torch.float)
-        mask_label_HTMLelements[mask_HTMLelements == 1] = label_HTMLelements
+        input_ids = torch.concat(input_ids)
+        global_mask = torch.concat(global_mask)
+        ### form padded masks for four kinds of labels
+        def to_tensor(list):
+            if len(list) > 0 and type(list[0]) == torch.Tensor:
+                return torch.stack(list)
+            else:
+                return torch.tensor(list)
+        label_evidence = to_tensor(label_evidence)
+        label_answers = to_tensor(label_answers)
+        label_answer_span = to_tensor(label_answer_span)
+        label_condition = to_tensor(label_condition)
         
-        index_HTMLelements = torch.tensor(index_HTMLelements, dtype = torch.long)
-        start_answer_span = index_HTMLelements.reshape(-1, 1)
-        end_answer_span = torch.concat([index_HTMLelements[1:], torch.tensor([input_text.shape[0] - input_tail.shape[0]])]).reshape(-1, 1) - 1
-        range_answer_span = torch.concat([start_answer_span, end_answer_span], dim=1)
-        range_answer_span = range_answer_span[label_HTMLelements[:, 0] == 1]
-        label_answer_span = torch.tensor(label_answer_span)
-        label_answer_span = label_answer_span[label_HTMLelements[:, 0] == 1]
+        mask_heads = torch.zeros(4000)
+        for i in index_heads:
+            mask_heads[i] = 1
+        
+        mask_label_evidence = torch.zeros(4000, dtype=torch.long)
+        mask_label_answers = torch.zeros(4000, dtype=torch.long)
+        mask_label_condition = torch.zeros(4000, 5, 2)
 
-        mask_answer_span = torch.zeros(4000, 2)
+        mask_label_evidence[mask_heads == 1] = label_evidence
+        mask_label_answers[mask_heads == 1] = label_answers
+        mask_label_condition[mask_heads == 1] = label_condition
+        
+        # define ans_range_span for span prediction
+        index_heads = torch.tensor(index_heads, dtype = torch.long)
+        start_answer_span = index_heads
+        end_answer_span = torch.concat([index_heads[1:], torch.tensor([input_ids.shape[0] - input_tail.shape[0]])]) - 1
+        range_answer_span = torch.stack([start_answer_span, end_answer_span], dim=1)
+        range_answer_span = range_answer_span[label_answers == 1]
+
+        mask_label_answer_span = torch.zeros(4000, 2)
         for i in range_answer_span:
-            mask_answer_span[i[0] : i[1] + 1, :] = -1
+            mask_label_answer_span[i[0] : i[1] + 1] = -1
         for i in label_answer_span:
-            mask_answer_span[i[0], 0] = 1
-            mask_answer_span[i[1], 1] = 1
+            mask_label_answer_span[i[0], 0] = 1
+            mask_label_answer_span[i[1], 1] = 1
         
+        ### form padded tensors for inputs
+        def pad(tensor, padding_id):
+            if padding_id == 1:
+                return torch.concat([tensor, torch.ones(4000 - tensor.shape[0], dtype=tensor.dtype)])
+            elif padding_id == 0:
+                return torch.concat([tensor, torch.zeros(4000 - tensor.shape[0], dtype=tensor.dtype)])
 
-        text_length = input_text.shape[0]
-        input_text = torch.concat((input_text, torch.ones(4000 - text_length, dtype = torch.long)))
-        global_mask = torch.concat((global_mask, torch.zeros(4000 - text_length, dtype = torch.long)))
-        attn_mask = torch.concat((torch.ones(text_length), torch.zeros(4000 - text_length)))
+        attn_mask = pad(torch.ones_like(input_ids), 0)
+        global_mask = pad(global_mask, 0)
+        input_ids = pad(input_ids, 1)
+
         qa_id = torch.tensor(int(qa['id'].split('-')[1]), dtype = torch.long)
-        mask_label_condition = torch.concat(mask_label_condition, dim=0)
-        tmp = torch.zeros((4000, 5, 2), dtype=torch.long)
-        tmp[:len(mask_label_condition)] = mask_label_condition
-        mask_label_condition = tmp
 
-        inputs.append([input_text, global_mask, attn_mask, mask_HTMLelements, mask_label_HTMLelements, mask_answer_span, qa_id, mask_label_condition])
+        inputs.append({'inputs': [input_ids.long(), global_mask.bool(), attn_mask.bool(), mask_heads.bool()],
+                    'labels': [mask_label_evidence.short(), mask_label_answers.short(), mask_label_answer_span.short(), mask_label_condition.bool()], 
+                    'id': qa_id})
     return inputs
 
 if __name__ == '__main__':
     tokenizer = Tokenizer(args.model_root)
     documents, train_data, dev_data = prepare_data(args)
-    # if os.path.exists(os.path.join(args.data_root, 'tokenized_documents_and_examples')):
-    #     print('found cached tokenized examples. loading...')
-    #     documents, train_examples, dev_examples = torch.load(os.path.join(args.data_root, 'tokenized_documents_and_examples')).values()
-    if False:
-        pass
+    if os.path.exists(os.path.join(args.data_root, 'tokenized_documents_and_examples')):
+        print('found cached tokenized examples. loading...')
+        documents, train_examples, dev_examples = torch.load(os.path.join(args.data_root, 'tokenized_documents_and_examples')).values()
     else:
         print('found no cached tokenized examples. tokenizing documents and examples...')
         encode_documents(documents)
