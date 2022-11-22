@@ -241,9 +241,9 @@ def convert_examples_to_inputs(examples, tokenizer, args):
 
         qa_id = torch.tensor(int(qa['id'].split('-')[1]), dtype = torch.long)
 
-        inputs.append({'inputs': [input_ids.long(), global_mask.bool(), attn_mask.bool(), mask_heads.bool()],
-                    'labels': [mask_label_evidence.short(), mask_label_answers.short(), mask_label_answer_span.short(), mask_label_condition.bool()], 
-                    'id': qa_id})
+        inputs.append([input_ids.long(), global_mask.bool(), attn_mask.bool(), mask_heads.bool(), # inputs
+            mask_label_evidence.short(), mask_label_answers.short(), mask_label_answer_span.short(), mask_label_condition.bool(), #labels 
+            qa_id])
     return inputs
 
 if __name__ == '__main__':

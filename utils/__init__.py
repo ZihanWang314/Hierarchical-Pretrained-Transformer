@@ -94,6 +94,21 @@ class ReIndexer:
             index = self.index
         sorted_tensor = torch.gather(tensor, 1, index)
         return sorted_tensor
+    
+    def recover_index(self, tensor):
+        if tensor.dim() > self.index.dim():
+            index = self.index.unsqueeze(-1).repeat(1,1,tensor.shape[2])
+        else:
+            index = self.index
+        recovered_tensor = torch.scatter(tensor, 1, index, tensor)
+        return recovered_tensor
+
+    def get_max_head_num(self):
+        return self.mask_r.count_nonzero(-1).max()
+    
+    def get_mask_r(self):
+        return self.mask_r[:, :self.get_max_head_num()].bool()
+
 
 def get_level(text):
     return text[0][0] - 50264
@@ -147,24 +162,24 @@ def dynamic_padding(attn_masks, *args):
     return [attn_masks[:, :length]] + [i[:, :length] for i in args]
 
     
-def analyze_binary_classification(label_answer_sentence, pred_answer_sentence):
+def analyze_binary_classification(label_answer_sentence, pred_answer_sentence, prec_weight = 1):
     fpr, tpr, thresholds = metrics.roc_curve(label_answer_sentence, pred_answer_sentence, pos_label = 1)
     auc = metrics.auc(fpr, tpr)
     p, r, thresholds = metrics.precision_recall_curve(label_answer_sentence, pred_answer_sentence, pos_label = 1)
-    f1_score = torch.tensor(2 *p * r / (p + r + 0.00001))
+    f1_score = torch.tensor((1 + prec_weight) * p * r / (p + prec_weight * r + 0.00001))
     return (f1_score.max(), auc, thresholds[f1_score.argmax()], p[f1_score.argmax()], r[f1_score.argmax()])
 
 def to_numpy(*args):
     return [arg.detach().cpu().tolist() for arg in args]
 
 
-def compare(pred_file='outputs/output', ref_file='../condqa_old/data/dev.json',compare_file='outputs/compare.out'):
+def compare(pred_file='outputs/output', ref_file='../condqa_files/data/dev.json',compare_file='outputs/compare.out'):
   qid2predictions = load_answers(pred_file)
   qid2references = load_answers(ref_file)
   with open(compare_file, 'w') as file:
       pass
   f1s = 0
-  for qid in qid2references.keys():
+  for qid in qid2predictions.keys():
     em, conditional_em, f1, conditional_f1 = compute_metrics(
     qid2predictions[qid], qid2references[qid])
     f1s += f1

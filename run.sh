@@ -2,51 +2,52 @@
 
 data_root=../condqa_files/data
 model_root=../condqa_files/model
-rm "${model_root}/result.txt"
-logdir=1120_test.txt
 
-for i in {0..49..1}
+rm "${model_root}/result.txt"
+logdir=1120_newstructure_cl_hpt_globalattention?.txt
+
+for i in {0..50..1}
 do
-    echo "training..."
+    echo "training epoch ${i}..."
     python -m torch.distributed.run \
-        --nnodes=1 --nproc_per_node=4 --node_rank=0 --master_port=6005 main.py \
+        --nnodes=1 --nproc_per_node=2 --node_rank=0 --master_port=6005 main.py \
         --mode=train --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
-        --logdir=${logdir} --accumulation_step=4 --train_condition \
-        --warmup_epoch_num=5 --total_epoch_num=50
+        --logdir=${logdir} --accumulation_step=8 --train_condition --contrastive_learning \
+        --warmup_epoch_num=5 --total_epoch_num=50 --contrastive_mode=hpt --tqdm
 
     echo "evaluating..."
     python main.py \
         --mode=inference --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
-        --logdir=${logdir}    
+        --logdir=${logdir} --tqdm
 done
 
-rm "${model_root}/model_current.pt"
-cp "${model_root}/model_best.pt" "${model_root}/model_best_nocl.pt"
-rm "${model_root}/model_best.pt"
+# rm "${model_root}/model_current.pt"
+# cp "${model_root}/model_best.pt" "${model_root}/model_best_nocl.pt"
+# rm "${model_root}/model_best.pt"
 
 
-rm "${model_root}/result.txt"
-logdir=1119_cl_hpt.txt
-for i in {0..49..1}
-do
-    echo "training..."
-    python -m torch.distributed.run \
-        --nnodes=1 --nproc_per_node=4 --node_rank=0 --master_port=6005 main.py \
-        --mode=train --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
-        --logdir=${logdir} --accumulation_step=4 --train_condition --contrastive_learning \
-        --warmup_epoch_num=5 --total_epoch_num=50 --contrastive_mode=hpt
+# rm "${model_root}/result.txt"
+# logdir=1119_cl_hpt.txt
+# for i in {0..49..1}
+# do
+#     echo "training..."
+#     python -m torch.distributed.run \
+#         --nnodes=1 --nproc_per_node=4 --node_rank=0 --master_port=6005 main.py \
+#         --mode=train --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
+#         --logdir=${logdir} --accumulation_step=4 --train_condition --contrastive_learning \
+#         --warmup_epoch_num=5 --total_epoch_num=50 --contrastive_mode=hpt
 
-    echo "evaluating..."
-    python main.py \
-        --mode=inference --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
-        --logdir=${logdir}
+#     echo "evaluating..."
+#     python main.py \
+#         --mode=inference --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
+#         --logdir=${logdir}
         
-done
+# done
 
-rm "${model_root}/model_current.pt"
-cp "${model_root}/model_best.pt" "${model_root}/model_best_hpt_cl.pt"
-rm "${model_root}/model_best.pt"
-rm "${model_root}/result.txt"
+# rm "${model_root}/model_current.pt"
+# cp "${model_root}/model_best.pt" "${model_root}/model_best_hpt_cl.pt"
+# rm "${model_root}/model_best.pt"
+# rm "${model_root}/result.txt"
 
 
 # 接下来应该做哪些实验
