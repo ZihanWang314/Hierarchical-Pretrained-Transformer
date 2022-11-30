@@ -83,7 +83,7 @@ def mask_a_node(base_node):
 
 def reorder_a_node(base_node):
     nodes = base_node.get_nodes_list()
-    nodes = [node for node in nodes if len(node.children) > 1]
+    nodes = [node for node in nodes if len(node.children) > 0]
     node = random.choice(nodes)
     random.shuffle(node.children)
     return base_node

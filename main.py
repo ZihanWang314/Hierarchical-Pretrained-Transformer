@@ -4,11 +4,12 @@ import os
 import argparse
 from utils import input_to_batch, Tokenizer, init_logger
 from model.modelling_hpt import HPTModel
-os.environ["CUDA_VISIBLE_DEVICES"] = '2,3'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3'
 os.environ["CUDA_LAUNCH_BLOCKING"] = '1'
 parser = argparse.ArgumentParser()
 parser.add_argument('--logdir', default='defaultlog.txt', type=str)
-parser.add_argument('--accumulation_step', default=4, type=int)
+parser.add_argument('--accumulation_step', default=2, type=int)
+parser.add_argument('--batch_size', default=2, type=int)
 parser.add_argument("--local_rank", default=os.getenv('LOCAL_RANK', -1), type=int)
 parser.add_argument('--mode', type=str)
 parser.add_argument('--epoch', type=int)
@@ -27,6 +28,7 @@ parser.add_argument('--ha_num_heads', type=int, default=12)
 parser.add_argument('--ha_hidden_size', type=int, default=64)
 parser.add_argument('--output_file', type=str, default='outputs/output')
 parser.add_argument('--inference_data', type=str, default='dev_data')
+parser.add_argument('--repeat', type=int, default=10)
 
 
 args = parser.parse_args()
@@ -48,7 +50,7 @@ def main():
         train_inputs = torch.load(os.path.join(args.data_root, 'train_inputs'))
         torch.cuda.set_device(args.local_rank)
         torch.distributed.init_process_group(backend="nccl")
-        train_inputs = input_to_batch(train_inputs, batch_size = 1, distributed = True)
+        train_inputs = input_to_batch(train_inputs, batch_size = args.batch_size, distributed = True)
         config = args
         model = HPTModel(config)
         if start > 0:
@@ -70,7 +72,7 @@ def main():
         model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
 
         logger.log(f'epoch_{start + 1}')
-        metric = model.answering_questions(dev_inputs)
+        metric = model.answering_questions(dev_inputs, 2)
         try:
             with open(os.path.join(args.model_root, 'result.txt'), 'r') as file:
                 best_performance = float(file.readlines()[0])

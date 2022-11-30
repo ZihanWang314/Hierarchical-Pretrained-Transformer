@@ -179,7 +179,7 @@ def compare(pred_file='outputs/output', ref_file='../condqa_files/data/dev.json'
   with open(compare_file, 'w') as file:
       pass
   f1s = 0
-  for qid in qid2predictions.keys():
+  for qid in qid2references.keys():
     em, conditional_em, f1, conditional_f1 = compute_metrics(
     qid2predictions[qid], qid2references[qid])
     f1s += f1

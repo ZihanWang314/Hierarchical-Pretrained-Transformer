@@ -136,12 +136,17 @@ def convert_examples_to_inputs(examples, tokenizer, args):
     inputs = []
 
     for qa in tqdm(examples_short, desc = 'converting examples to inputs..'):
-        input_head = tokenizer('Title: ' + qa['title'][0] + ' Document: <yes><no>')
-        input_tail = tokenizer(' Question: ' + qa['question'] + ' Scenario: ' + qa['scenario']) 
+        answers = [i[0] for i in qa['answers']]
+        if not any(i[1] != [] for i in qa['answers']):
+            continue
+        if ('yes' not in answers) and ('no' not in answers):
+            continue
+        input_head = tokenizer('<yes><no>')
+        input_tail = tokenizer('Title: ' + qa['title'][0] + ' Question: ' + qa['question'] + ' Scenario: ' + qa['scenario']) 
 
         input_ids = [input_head]
         global_mask = [torch.ones(input_head.shape[0])]
-        index_heads = [len(input_head) - 2, len(input_head) - 1]
+        index_heads = [0, 1]
 
         ### initialize for yes/no answers
         label_evidence = [-1, -1]
@@ -153,14 +158,27 @@ def convert_examples_to_inputs(examples, tokenizer, args):
         if 'yes' in answers:
             label_condition[0][answers.index('yes')][0] = 1
             label_answers[0] = 1
-            label_answer_span.append([len(input_head) - 2, len(input_head) - 2])
         if 'no' in answers:
             label_condition[1][answers.index('no')][0] = 1
             label_answers[1] = 1
-            label_answer_span.append([len(input_head) - 1, len(input_head) - 1])
+        
+
+        # 占位置
+        tokens = tokenizer('<h1></h1>')
+        global_mask_sentence = torch.zeros(tokens.shape[0])
+        global_mask_sentence[0] = 1.
+        global_mask.append(global_mask_sentence)
+        index_head = sum([token.shape[0] for token in input_ids])
+        index_heads.append(index_head)
+        label_evidence.append(-1)
+        label_answers.append(-1)        
+        label_condition.append(torch.zeros(5, 2))
+        input_ids.append(tokens)
         
         ### iterate in article sentences
         for sentence in qa['document']:
+            # if sentence['is_evidence'] == 'irrelevant':
+            #     continue
             tokens = sentence['tokens']
             global_mask_sentence = torch.zeros(tokens.shape[0])
             global_mask_sentence[0] = 1.

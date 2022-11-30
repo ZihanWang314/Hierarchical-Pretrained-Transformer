@@ -17,10 +17,19 @@ logger2 = Logger('nohup.out')
 class ConditionCalculator(nn.Module):
     def __init__(self):
         super().__init__()
-        self.attention = nn.MultiheadAttention(768, 12, 0.1, batch_first=True)
+        self.ff = nn.Sequential(nn.GELU(), nn.Linear(768, 3072))
+        self.q = nn.Linear(3072, 3072)
+        self.k = nn.Linear(3072, 3072)
+        
 
     def forward(self, hidden_states, mask_r):
-        return self.attention(hidden_states, hidden_states, hidden_states,  key_padding_mask = (~ mask_r))[1]
+        hidden_states = self.ff(hidden_states)
+        q = self.q(hidden_states)
+        k = self.k(hidden_states)
+        scores = torch.einsum('abh,ach->abc', q, k) / (3072 ** 0.5)
+        scores -= (1 - mask_r.float()[..., None]) * 1000
+        
+        return scores
 
 
 class HierarchicalTransformerAttention(nn.Module):
@@ -81,7 +90,7 @@ class HierarchicalTransformerEncoder(nn.Module):
     def __init__(self, config, longformer_encoder):
         super().__init__()
         self.layer = longformer_encoder.layer
-        self.head_attentions = nn.ModuleList([HierarchicalTransformerAttention(config) for _ in range(3)])
+        # self.head_attentions = nn.ModuleList([HierarchicalTransformerAttention(config) for _ in range(3)])
 
     def forward(self, hidden_states, attention_mask, padding_len, level_hierarchy):
         is_index_masked = attention_mask < 0
@@ -97,8 +106,8 @@ class HierarchicalTransformerEncoder(nn.Module):
                 is_global_attn=is_global_attn,
             )
             hidden_states = layer_outputs[0]
-            if idx >= 9:
-                hidden_states = self.head_attentions[idx - 9](hidden_states, level_hierarchy) # additional attention for our task
+            # if idx >= 9:
+            #     hidden_states = self.head_attentions[idx - 9](hidden_states, level_hierarchy) # additional attention for our task
 
         # undo padding
         if padding_len > 0:
@@ -170,21 +179,23 @@ class HPTEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.evidence_weight = 1
-        self.answers_weight = 1
-        self.span_weight = 1
+        self.evidence_weight = 0.5
+        self.yesno_weight = 0
+        self.extractive_weight = 0
+        self.span_weight = 0
         self.condition_weight = 1
         self.contrastive_weight = 0.5 # it's ok they don't sum to be 1 because of adam
         global logger
         logger = Logger(config.logdir)
         self.transformer = HierarchicalTransformer(config)
-        self.head_attention = nn.MultiheadAttention(768, 12, 0.1, batch_first=True)
+        # self.head_attention = nn.MultiheadAttention(768, 12, 0.1, batch_first=True)
+        # self.head_attention = nn.Identity() #NOTE for test
 
-        self.evidence_probe = nn.Sequential(nn.Linear(768, 1), nn.Sigmoid())
-        self.yes_probe = nn.Sequential(nn.Linear(768, 1), nn.Sigmoid())
-        self.no_probe = nn.Sequential(nn.Linear(768, 1), nn.Sigmoid())
-        self.extractive_probe = nn.Sequential(nn.Linear(768, 1), nn.Sigmoid())
-        self.span_probe = nn.Sequential(nn.Linear(768, 2), nn.Sigmoid())
+        self.evidence_probe = nn.Linear(768, 1)
+        self.yes_probe = nn.Linear(768, 1)
+        self.no_probe = nn.Linear(768, 1)
+        self.extractive_probe = nn.Linear(768, 1)
+        self.span_probe = nn.Linear(768, 2)
 
         self.condition_calculator = ConditionCalculator()
         
@@ -198,12 +209,15 @@ class HPTEncoder(nn.Module):
         input = input.flatten()
         target = target.flatten()
         if target.shape[0] == 0:
-            return torch.tensor(torch.nan)
-        x = target.shape[0]/target.count_nonzero()/2
-        y = target.shape[0]/(target.shape[0]-target.count_nonzero())/2
-        tensor = torch.where(target == 1, x, y)
-        loss_fn = torch.nn.BCELoss(weight=tensor)
-        return loss_fn(input, target)
+            return torch.tensor(torch.nan).to(input.device)
+        # elif (target.count_nonzero() == 0) or (target.count_nonzero() == target.shape[0]):
+        #     return torch.tensor(torch.nan).to(input.device)
+        else:
+            x = target.shape[0]/target.count_nonzero()/2
+            y = target.shape[0]/(target.shape[0]-target.count_nonzero())/2
+            tensor = torch.where(target == 1, x, y)
+            loss_fn = torch.nn.BCEWithLogitsLoss(weight=tensor)
+            return loss_fn(input, target)
 
     def contrastive_loss(self, last_hiddens, contrastive_pairs):
         loss = []
@@ -245,6 +259,9 @@ class HPTEncoder(nn.Module):
         return torch.concat([y, n, e], dim=1)
 
     def forward(self, data, autocast = True):
+        input_ids, global_masks, attn_masks, mask_heads, mask_label_evidence, mask_label_answers, \
+            mask_label_answer_span, mask_label_condition, qa_id = self.load_batch(data)
+            
         if self.config.contrastive_learning:
             contrastive_input, contrastive_pairs = self.con_sampler.batch_generate(data)
             data[0], data[1], data[2] = contrastive_input
@@ -287,10 +304,19 @@ class HPTEncoder(nn.Module):
         loss_evidence = self.weighted_loss(pred_evidence, label_evidence)
 
         # predict answer because it is after attention layer
-        last_hidden_r = self.head_attention(last_hidden_r, last_hidden_r, last_hidden_r, key_padding_mask = (~ mask_r))[0]
-        label_answers = (mask_label_answers_r[mask_label_answers_r != 0] + 1) / 2
-        pred_answers = self.answer_probe(last_hidden_r).squeeze(-1)[mask_label_answers_r != 0]
-        loss_answers = self.weighted_loss(pred_answers, label_answers)
+        # last_hidden_r = self.head_attention(last_hidden_r, last_hidden_r, last_hidden_r, key_padding_mask = (~ mask_r))[0]
+        mask_answers = mask_label_answers_r != 0
+        label_answers = (mask_label_answers_r + 1) / 2
+        pred_answers = self.answer_probe(last_hidden_r)
+        label_yes = label_answers[:, 0][mask_answers[:, 0]]
+        label_no = label_answers[:, 1][mask_answers[:, 1]]
+        pred_yes = pred_answers[:, 0][mask_answers[:, 0]]
+        pred_no = pred_answers[:, 1][mask_answers[:, 1]]
+        label_extractive = label_answers[:, 2:][mask_answers[:, 2:]]
+        pred_extractive = pred_answers[:, 2:][mask_answers[:, 2:]]
+
+        loss_yesno = (self.weighted_loss(pred_yes, label_yes) + self.weighted_loss(pred_no, label_no)) /2
+        loss_extractive = self.weighted_loss(pred_extractive, label_extractive)
         
         # predict condition and predict.
         pred_condition = self.condition_calculator(last_hidden_r, mask_r)
@@ -302,21 +328,22 @@ class HPTEncoder(nn.Module):
         cond_indicator = cond_indicator.unsqueeze(2).repeat(1, 1, max_head_num, 1)# 1, 2, 3, 3
         label_condition = torch.einsum('abcd,abc->acd',cond_indicator, ans_indicator)# NOTE there might be some bugs because never see 1
         mask_r = torch.einsum('ab,ac->abc', mask_r, mask_r)
-        mask_r = torch.einsum('abc,ab->abc', mask_r, mask_label_answers_r)
+        mask_r = torch.einsum('abc,ab->abc', mask_r, (mask_label_answers_r + 1) / 2)
         pred_condition = pred_condition[mask_r!=0]
         label_condition = label_condition[mask_r!=0]
         loss_condition = self.weighted_loss(pred_condition, label_condition)
 
-        loss_total = self.evidence_weight * loss_evidence + self.answers_weight * loss_answers + \
+        loss_total = self.evidence_weight * loss_evidence + self.yesno_weight * loss_yesno + self.extractive_weight * loss_extractive + \
             self.span_weight * loss_span + self.condition_weight * loss_condition
 
+        
         if self.config.contrastive_learning:
             last_hidden_resized = last_hidden_all.reshape(last_hidden_all.shape[0] // 2, 2, last_hidden_all.shape[1], last_hidden_all.shape[2])
             contrastive_loss = self.contrastive_loss(last_hidden_resized, contrastive_pairs)
             loss_total += self.contrastive_weight * contrastive_loss * (loss_evidence.detach() / contrastive_loss.detach()) # contrastive loss will be normalized
-            return loss_total, to_numpy(loss_evidence, loss_answers, loss_span, loss_condition, contrastive_loss)
+            return loss_total, to_numpy(loss_evidence, loss_yesno, loss_extractive, loss_span, loss_condition, contrastive_loss)
 
-        return loss_total, to_numpy(loss_evidence, loss_answers, loss_span, loss_condition)
+        return loss_total, to_numpy(loss_evidence, loss_yesno, loss_extractive, loss_span, loss_condition)
 
 
 class HPTModel(nn.Module):
@@ -339,12 +366,15 @@ class HPTModel(nn.Module):
         # train with DDP
         if self.mode != None:
             self.activate_normal_mode()
-        self.to('cpu')
-        self.cuda(self.config.local_rank)
-        self.encoder = torch.nn.parallel.DistributedDataParallel(
-            self.encoder, device_ids=[self.config.local_rank], output_device=self.config.local_rank, find_unused_parameters=True
-            )
-        self.encoder.module.transformer.train()
+        try:
+            self.to('cpu')
+            self.cuda(self.config.local_rank)
+            self.encoder = torch.nn.parallel.DistributedDataParallel(
+                self.encoder, device_ids=[self.config.local_rank], output_device=self.config.local_rank, find_unused_parameters=True
+                )
+            self.encoder.module.transformer.train()
+        except:
+            self.to('cuda')
         self.mode = 'train'
 
     def activate_inference_mode(self):
@@ -352,7 +382,7 @@ class HPTModel(nn.Module):
         if self.mode != None:
             self.activate_normal_mode()
         self.to('cuda:0')
-        self.encoder.transformer = torch.nn.DataParallel(self.encoder.transformer, device_ids=[0,1])
+        self.encoder.transformer = torch.nn.DataParallel(self.encoder.transformer, device_ids=[0,1,2,3])
         self.encoder.eval()
         self.mode = 'eval'
 
@@ -371,20 +401,23 @@ class HPTModel(nn.Module):
         self.activate_training_mode()
         batch_steps = 0
         record_losses = []
-        if self.config.tqdm:
-            train_inputs = tqdm(train_inputs, total=len(train_inputs))
-        for batch in train_inputs:
-            batch_steps += 1
-            loss, rec_l = self.encoder(batch, autocast = True)
-            record_losses.append(rec_l)
-            loss /= self.config.accumulation_step
-            self.scaler.scale(loss).backward()
-            if (batch_steps + 1) % self.config.accumulation_step == 0:
-                self.scaler.unscale_(self.optimizer)
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-                self.optimizer.zero_grad()
-                logger2.log(torch.tensor(record_losses).nanmean(0))
+        for i in range(self.config.repeat):
+            if self.config.tqdm:
+                iter = tqdm(train_inputs, total=len(train_inputs))
+            else:
+                iter = train_inputs
+            for batch in iter:
+                batch_steps += 1
+                loss, rec_l = self.encoder(batch, autocast = True)
+                record_losses.append(rec_l)
+                loss /= self.config.accumulation_step
+                self.scaler.scale(loss).backward()
+                if (batch_steps + 1) % self.config.accumulation_step == 0:
+                    self.scaler.unscale_(self.optimizer)
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                    self.optimizer.zero_grad()
+                    logger2.log(torch.tensor(record_losses).nanmean(0))
         self.activate_normal_mode()
         torch.save(self.state_dict(), os.path.join(self.config.model_root, 'model_current.pt'))
 
@@ -417,15 +450,15 @@ class HPTModel(nn.Module):
                     
                     # predict evidence because it is before attention layer
                     label_evidence = (mask_label_evidence_r[mask_label_evidence_r != 0] + 1) / 2
-                    pred_evidence = self.encoder.evidence_probe(last_hidden_r).squeeze(-1)[mask_label_evidence_r != 0]
+                    pred_evidence = self.encoder.evidence_probe(last_hidden_r).sigmoid().squeeze(-1)[mask_label_evidence_r != 0]
 
                     # predict answer because it is after attention layer
-                    last_hidden_r = self.encoder.head_attention(last_hidden_r, last_hidden_r, last_hidden_r, \
-                        key_padding_mask = (~ mask_r))[0]
+                    # last_hidden_r = self.encoder.head_attention(last_hidden_r, last_hidden_r, last_hidden_r, \
+                    #     key_padding_mask = (~ mask_r))[0]
 
                     mask_answers = mask_label_answers_r != 0
                     label_answers = (mask_label_answers_r + 1) / 2
-                    pred_answers = self.encoder.answer_probe(last_hidden_r).squeeze(-1)
+                    pred_answers = self.encoder.answer_probe(last_hidden_r).sigmoid().squeeze(-1)
                     label_yes = label_answers[:, 0][mask_answers[:, 0]]
                     label_no = label_answers[:, 1][mask_answers[:, 1]]
                     label_extractive = label_answers[:, 2:][mask_answers[:, 2:]]
@@ -437,7 +470,7 @@ class HPTModel(nn.Module):
                     
 
                     # predict condition and predict.
-                    pred_condition = self.encoder.condition_calculator(last_hidden_r, mask_r)
+                    pred_condition = self.encoder.condition_calculator(last_hidden_r, mask_r).sigmoid()
                     ans_indicator = mask_label_condition[..., 0]
                     cond_indicator = mask_label_condition[..., 1]
                     ans_indicator = indexer.re_index(ans_indicator)[:, :max_head_num].transpose(-2, -1)
@@ -445,7 +478,7 @@ class HPTModel(nn.Module):
                     cond_indicator = cond_indicator.unsqueeze(2).repeat(1, 1, max_head_num, 1)# 1, 2, 3, 3
                     label_condition = torch.einsum('abcd,abc->acd',cond_indicator, ans_indicator)# NOTE there might be some bugs because never see 1
                     mask_r = torch.einsum('ab,ac->abc', mask_r, mask_r)
-                    mask_r = torch.einsum('abc,ab->abc', mask_r, mask_label_answers_r)
+                    mask_r = torch.einsum('abc,ab->abc', mask_r, (mask_label_answers_r + 1) / 2)
                     pred_condition = pred_condition[mask_r!=0]
                     label_condition = label_condition[mask_r!=0]
 
@@ -461,26 +494,32 @@ class HPTModel(nn.Module):
                     labels['extractive'] += label_extractive.cpu().detach().tolist()
                     preds['condition'] += pred_condition.cpu().detach().tolist()
                     labels['condition'] += label_condition.cpu().detach().tolist()
-
-                                
+                    print(pred_condition[label_condition == 0].mean(), (label_condition == 0).flatten().float().sum())
+                    print(pred_condition[label_condition == 1].mean(), (label_condition == 1).flatten().float().sum())
         thresholds = []
         for name in ['evidence', 'answers', 'yes', 'no', 'extractive', 'condition']:
             logger.log(name)
-            if name in ['evidence', 'answers', 'extractive']:
+            if name in ['evidence']:
+                weight = 0.1
+            if name in ['answers', 'extractive']:
                 weight = 1
             if name in ['yes', 'no']:
-                weight = 3
+                weight = 1
             if name == 'condition':
-                weight = 10
+                weight = 1
             fk, auc, threshold, p, r = analyze_binary_classification(labels[name], preds[name], prec_weight = weight)
             logger.log(f'f{weight}_score:%.4f, auc:%.4f, threshold for best_f1:%.4f, prec:%.4f, recall:%.4f'%\
                 (fk, auc, threshold, p, r))
 
             thresholds.append(threshold)
+        thresholds[2] = 0
+        thresholds[3] = 0
+        thresholds[4] = 1
+        # thresholds[-1] = 1.0
 
         return thresholds
 
-    def answering_questions(self, test_inputs):
+    def answering_questions(self, test_inputs, max_prediction):
         '''
         making inference on test set
         '''
@@ -512,10 +551,10 @@ class HPTModel(nn.Module):
                             torch.concat([index_heads[1:], index_end]).reshape(-1,1) - 1
                         ], dim = 1)
                         head_hiddens = last_hidden[index_heads]
-                        pred_evidence = self.encoder.evidence_probe(head_hiddens).squeeze(-1)
-                        head_hiddens = self.encoder.head_attention(head_hiddens, head_hiddens, head_hiddens)[0]
+                        pred_evidence = self.encoder.evidence_probe(head_hiddens).sigmoid().squeeze(-1)
+                        # head_hiddens = self.encoder.head_attention(head_hiddens, head_hiddens, head_hiddens)[0]
                         head_hiddens = head_hiddens[None]
-                        pred_answers = self.encoder.answer_probe(head_hiddens)[0].squeeze(-1)
+                        pred_answers = self.encoder.answer_probe(head_hiddens)[0].sigmoid().squeeze(-1)
 
                         pred_answers_mask = torch.concat(
                             [pred_answers[0:1] > thre_yes, pred_answers[1:2] > thre_no, pred_answers[2:] > thre_extractive]
@@ -528,28 +567,30 @@ class HPTModel(nn.Module):
                         max_head_num = indexer.get_max_head_num()
                         last_hidden_r = indexer.re_index(last_hidden.unsqueeze(0))[:, :max_head_num] # 1 * HTML * H
                         mask_r = indexer.get_mask_r().to(input_ids.device)
-
-                        pred_condition = self.encoder.condition_calculator(last_hidden_r, mask_r)[0] # HTML * HTML
+                        pred_condition = self.encoder.condition_calculator(last_hidden_r, mask_r)[0].sigmoid() # HTML * HTML
                         pred_condition = (pred_condition > thre_condition) & (pred_condition >= pred_condition.topk(5, dim=-1).values[:, -1].unsqueeze(1))
 
                         for index_answer, range_ in enumerate(pred_answer_sentence_span):
-                            pred_answer_span = softmax_layer(self.encoder.span_probe(last_hidden[range_[0]: range_[1] + 1, :]).T)
+                            pred_answer_span = softmax_layer(self.encoder.span_probe(last_hidden[range_[0]: range_[1] + 1, :]).sigmoid().T)
                             index_pred_answer_start = torch.argmax(pred_answer_span[0])
                             index_pred_answer_end = torch.argmax(pred_answer_span[1])
                             prob = prob_pred_answers[index_answer]
                             pred_answer = self.tokenizer.decode(text_ids[index_pred_answer_start + range_[0]: index_pred_answer_end + range_[0] + 1])
                             answer_sentence_index = (indexer.index[0] == range_[0]).nonzero()[0][0]
-                            pred_condition_index = pred_condition[answer_sentence_index]
+                            pred_condition_index = pred_condition[answer_sentence_index] # for testing
                             pred_condition_start_end = range_answer_span[pred_condition_index]
                             pred_conditions = []
                             for start, end in pred_condition_start_end:
                                 pred_conditions.append(self.tokenizer.decode(text_ids[start: end + 1]))
-
                             if pred_answer != '':
-                                if pred_answer == '<yes>':
+                                if '<yes>' in pred_answer:#NOTE for condition test
                                     pred_answer = 'yes'
-                                if pred_answer == '<no>':
+                                    if mask_label_answers[sample_index][0] != 1:
+                                        continue
+                                if '<no>' in pred_answer:
                                     pred_answer = 'no'
+                                    if mask_label_answers[sample_index][1] != 1:
+                                        continue
                                 if id_example in output:
                                     if pred_answer not in [i[0][0] for i in output[id_example]]:
                                         output[id_example].append([[pred_answer, pred_conditions], prob])
@@ -564,7 +605,7 @@ class HPTModel(nn.Module):
             output_real = []
             def answers_to_list(answers):
                 answers.sort(key = lambda x:x[1], reverse = True)
-                answers = [x[0] for x in answers[:5]]
+                answers = [x[0] for x in answers[:max_prediction]]
                 return answers
                 
             for k, v in output.items():
@@ -575,11 +616,13 @@ class HPTModel(nn.Module):
             answered = set()
             for x in output_real:
                 answered.add(int(x['id'].split('-')[1]))
-            all_qa = set(range(0, 285))
-            for k in all_qa - answered:
-                if self.config.inference_data == 'train_data':
+            if self.config.inference_data == 'train_data':
+                all_qa = set(range(0, 2338))
+                for k in all_qa - answered:
                     output_real.append({'id':'train-'+str(k), 'answers':[]})
-                if self.config.inference_data == 'dev_data':
+            if self.config.inference_data == 'dev_data':
+                all_qa = set(range(0, 285))
+                for k in all_qa - answered:
                     output_real.append({'id':'dev-'+str(k), 'answers':[]})
 
             json.dump(output_real, open(self.config.output_file,'w'))

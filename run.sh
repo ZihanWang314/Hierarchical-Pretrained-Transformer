@@ -3,22 +3,30 @@
 data_root=../condqa_files/data
 model_root=../condqa_files/model
 
-rm "${model_root}/result.txt"
-logdir=1120_newstructure_cl_hpt_globalattention?.txt
+# rm "${model_root}/result.txt"
+logdir=1129_newstructure_nocl_trained_on_yesno_only_condition #globalattention.txt
 
 for i in {0..50..1}
 do
     echo "training epoch ${i}..."
     python -m torch.distributed.run \
-        --nnodes=1 --nproc_per_node=2 --node_rank=0 --master_port=6005 main.py \
+        --nnodes=1 --nproc_per_node=4 --node_rank=0 --master_port=6005 main.py \
         --mode=train --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
-        --logdir=${logdir} --accumulation_step=8 --train_condition --contrastive_learning \
-        --warmup_epoch_num=5 --total_epoch_num=50 --contrastive_mode=hpt --tqdm
+        --logdir=${logdir} --accumulation_step=2 --train_condition --batch_size=4 \
+        --warmup_epoch_num=5 --total_epoch_num=50 --tqdm  --contrastive_learning --contrastive_mode=hpt \
+        --repeat=10
 
     echo "evaluating..."
     python main.py \
         --mode=inference --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
-        --logdir=${logdir} --tqdm
+        --logdir=${logdir} --tqdm --inference_data=dev_data
+        
+    ((num=$i %5))
+    if [ "$num" == 0 ];then
+        python main.py \
+            --mode=inference --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
+            --logdir=${logdir} --tqdm --inference_data=train_data
+    fi
 done
 
 # rm "${model_root}/model_current.pt"
