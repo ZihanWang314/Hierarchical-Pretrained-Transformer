@@ -11,6 +11,9 @@ parser.add_argument('--data_root', type=str)
 parser.add_argument('--model_root', type=str)
 parser.add_argument('--doc_length', type=int, default=150)
 parser.add_argument('--doc_overlap', type=int, default=120)
+parser.add_argument('--easy_passage', action='store_true')
+parser.add_argument('--yesno_only', action='store_true')
+parser.add_argument('--conditional_only', action='store_true')
 
 args = parser.parse_args()
 
@@ -137,16 +140,18 @@ def convert_examples_to_inputs(examples, tokenizer, args):
 
     for qa in tqdm(examples_short, desc = 'converting examples to inputs..'):
         answers = [i[0] for i in qa['answers']]
-        if not any(i[1] != [] for i in qa['answers']):
-            continue
-        # if ('yes' not in answers) and ('no' not in answers):
-        #     continue
-        input_head = tokenizer('<yes><no>')
+        if args.conditional_only:
+            if not any(i[1] != [] for i in qa['answers']):
+                continue
+        if args.yesno_only:
+            if ('yes' not in answers) and ('no' not in answers):
+                continue
+        input_head = tokenizer('<s><yes><no>')
         input_tail = tokenizer('Title: ' + qa['title'][0] + ' Question: ' + qa['question'] + ' Scenario: ' + qa['scenario']) 
 
         input_ids = [input_head]
         global_mask = [torch.ones(input_head.shape[0])]
-        index_heads = [0, 1]
+        index_heads = [1, 2]
 
         ### initialize for yes/no answers
         label_evidence = [-1, -1]
@@ -177,8 +182,9 @@ def convert_examples_to_inputs(examples, tokenizer, args):
         
         ### iterate in article sentences
         for sentence in qa['document']:
-            if sentence['is_evidence'] == 'irrelevant':
-                continue
+            if args.easy_passage:
+                if sentence['is_evidence'] == 'irrelevant':
+                    continue
             tokens = sentence['tokens']
             global_mask_sentence = torch.zeros(tokens.shape[0])
             global_mask_sentence[0] = 1.
@@ -257,11 +263,17 @@ def convert_examples_to_inputs(examples, tokenizer, args):
         global_mask = pad(global_mask, 0)
         input_ids = pad(input_ids, 1)
 
+
+        if any([i[1] for i in qa['answers']]):
+            conditional_bool = torch.ones(1)
+        else:
+            conditional_bool = torch.zeros(1)
         qa_id = torch.tensor(int(qa['id'].split('-')[1]), dtype = torch.long)
+
 
         inputs.append([input_ids.long(), global_mask.bool(), attn_mask.bool(), mask_heads.bool(), # inputs
             mask_label_evidence.short(), mask_label_answers.short(), mask_label_answer_span.short(), mask_label_condition.bool(), #labels 
-            qa_id])
+            conditional_bool, qa_id])
     return inputs
 
 if __name__ == '__main__':

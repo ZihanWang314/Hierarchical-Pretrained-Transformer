@@ -185,6 +185,7 @@ class HPTEncoder(nn.Module):
         self.extractive_weight = 0
         self.span_weight = 0
         self.condition_weight = 1
+        self.type_weight = 1
         self.contrastive_weight = 0.5 # it's ok they don't sum to be 1 because of adam
         global logger
         logger = Logger(config.logdir)
@@ -197,6 +198,7 @@ class HPTEncoder(nn.Module):
         self.no_probe = nn.Linear(768, 1)
         self.extractive_probe = nn.Linear(768, 1)
         self.span_probe = nn.Linear(768, 2)
+        self.type_probe = nn.Linear(768, 1)
 
         self.condition_calculator = ConditionCalculator()
         
@@ -261,7 +263,7 @@ class HPTEncoder(nn.Module):
 
     def forward(self, data, autocast = True):
         input_ids, global_masks, attn_masks, mask_heads, mask_label_evidence, mask_label_answers, \
-            mask_label_answer_span, mask_label_condition, qa_id = self.load_batch(data)
+            mask_label_answer_span, mask_label_condition, conditional_bool, qa_id = self.load_batch(data)
             
         if self.config.contrastive_learning:
             contrastive_input, contrastive_pairs = self.con_sampler.batch_generate(data)
@@ -272,7 +274,7 @@ class HPTEncoder(nn.Module):
             # the enhanced data only participate in contrastive learning part, not QA part
 
         input_ids, global_masks, attn_masks, mask_heads, mask_label_evidence, mask_label_answers, \
-            mask_label_answer_span, mask_label_condition, qa_id = self.load_batch(data)
+            mask_label_answer_span, mask_label_condition, question_types, qa_id = self.load_batch(data)
         if autocast == True:
             with torch.cuda.amp.autocast():
                 last_hidden_all = self.transformer(input_ids, global_attention_mask = global_masks, attention_mask = attn_masks)
@@ -282,6 +284,10 @@ class HPTEncoder(nn.Module):
             last_hidden = last_hidden_all[::2]
         else:
             last_hidden = last_hidden_all
+
+        pred_type = self.type_probe(last_hidden[:, 0]).flatten()
+        label_type = conditional_bool.flatten()
+        loss_type = self.weighted_loss(pred_type, label_type)
 
         # span_loss do not need re-index operation
         pred_span = self.span_probe(last_hidden)[mask_label_answer_span != 0]
@@ -334,8 +340,8 @@ class HPTEncoder(nn.Module):
         label_condition = label_condition[mask_r!=0]
         loss_condition = self.weighted_loss(pred_condition, label_condition)
 
-        loss_total = self.evidence_weight * loss_evidence + self.yesno_weight * loss_yesno + self.extractive_weight * loss_extractive + \
-            self.span_weight * loss_span + self.condition_weight * loss_condition
+        loss_total = self.type_weight * loss_type + self.evidence_weight * loss_evidence + self.yesno_weight * loss_yesno + \
+            self.extractive_weight * loss_extractive + self.span_weight * loss_span + self.condition_weight * loss_condition
 
         
         if self.config.contrastive_learning:
@@ -429,18 +435,20 @@ class HPTModel(nn.Module):
         '''
         self.activate_inference_mode()
 
-        preds = {'evidence': [], 'answers': [], 'condition': [], 'yes': [], 'no': [], 'extractive': []}
-        labels = {'evidence': [], 'answers': [], 'condition': [], 'yes': [], 'no': [], 'extractive': []}
+        preds = {'type': [], 'evidence': [], 'answers': [], 'condition': [], 'yes': [], 'no': [], 'extractive': []}
+        labels = {'type': [], 'evidence': [], 'answers': [], 'condition': [], 'yes': [], 'no': [], 'extractive': []}
         with torch.no_grad():
             with torch.cuda.amp.autocast():
                 if self.config.tqdm:
                     dev_inputs = tqdm(dev_inputs, total=len(dev_inputs))
                 for data in dev_inputs:
                     input_ids, global_masks, attn_masks, mask_heads, mask_label_evidence, mask_label_answers, \
-                        mask_label_answer_span, mask_label_condition, qa_id = self.encoder.load_batch(data)
+                        mask_label_answer_span, mask_label_condition, conditional_bool, qa_id = self.encoder.load_batch(data)
 
                     last_hidden = self.encoder.transformer(input_ids, global_attention_mask = global_masks, attention_mask = attn_masks)
-
+                
+                    label_type = conditional_bool.flatten()
+                    pred_type = self.encoder.type_probe(last_hidden[:, 0])
                     indexer = ReIndexer()
                     indexer.set_index(mask_heads)
                     max_head_num = indexer.get_max_head_num()
@@ -483,6 +491,8 @@ class HPTModel(nn.Module):
                     pred_condition = pred_condition[mask_r!=0]
                     label_condition = label_condition[mask_r!=0]
 
+                    preds['type'] += pred_type.cpu().detach().tolist()
+                    labels['type'] += label_type.cpu().detach().tolist()
                     preds['evidence'] += pred_evidence.cpu().detach().tolist()
                     labels['evidence'] += label_evidence.cpu().detach().tolist()
                     preds['answers'] += pred_answers.cpu().detach().tolist()
@@ -495,12 +505,13 @@ class HPTModel(nn.Module):
                     labels['extractive'] += label_extractive.cpu().detach().tolist()
                     preds['condition'] += pred_condition.cpu().detach().tolist()
                     labels['condition'] += label_condition.cpu().detach().tolist()
+                    
         thresholds = []
-        for name in ['evidence', 'answers', 'yes', 'no', 'extractive', 'condition']:
+        for name in ['type', 'evidence', 'answers', 'yes', 'no', 'extractive', 'condition']:
             logger.log(name)
             if name in ['evidence']:
                 weight = 0.1
-            if name in ['answers', 'extractive']:
+            if name in ['type', 'answers', 'extractive']:
                 weight = 1
             if name in ['yes', 'no']:
                 weight = 1
@@ -525,7 +536,7 @@ class HPTModel(nn.Module):
         self.activate_inference_mode()
 
         softmax_layer = torch.nn.Softmax(dim = -1)
-        thre_evid, thre_ans, thre_yes, thre_no, thre_extractive, thre_condition = self.test(test_inputs)
+        thre_type, thre_evid, thre_ans, thre_yes, thre_no, thre_extractive, thre_condition = self.test(test_inputs)
         logger.log('testing on test inputs')
         output = {}
         with torch.no_grad():
@@ -542,6 +553,7 @@ class HPTModel(nn.Module):
                         text_ids = input_ids[sample_index].cuda(last_hidden.device)
                         index_heads = mask_heads[sample_index].nonzero().flatten()
                         id_example = qa_id[sample_index].tolist()
+                        pred_type = self.encoder.type_probe(last_hidden[0]) > thre_type
 
                         global_mask = global_masks[sample_index].nonzero().flatten()
                         index_end = global_mask[global_mask > index_heads.max()].min().unsqueeze(0)
@@ -613,16 +625,19 @@ class HPTModel(nn.Module):
 
 
             output_real = []
-            def answers_to_list(answers):
+            def answers_to_list(answers, conditional):
                 answers.sort(key = lambda x:x[1], reverse = True)
-                answers = [x[0] for x in answers[:max_prediction]]
+                if conditional:
+                    answers = [x[0] for x in answers[:max_prediction]]
+                else:
+                    answers = [answers[0][0][0], []]
                 return answers
                 
             for k, v in output.items():
                 if self.config.inference_data == 'train_data':
-                    output_real.append({'id':'train-'+str(k), 'answers':answers_to_list(v)})
+                    output_real.append({'id':'train-'+str(k), 'answers':answers_to_list(v, pred_type)})
                 elif self.config.inference_data == 'dev_data':
-                    output_real.append({'id':'dev-'+str(k), 'answers':answers_to_list(v)})
+                    output_real.append({'id':'dev-'+str(k), 'answers':answers_to_list(v, pred_type)})
             answered = set()
             for x in output_real:
                 answered.add(int(x['id'].split('-')[1]))
