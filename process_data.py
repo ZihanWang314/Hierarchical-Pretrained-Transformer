@@ -139,8 +139,8 @@ def convert_examples_to_inputs(examples, tokenizer, args):
         answers = [i[0] for i in qa['answers']]
         if not any(i[1] != [] for i in qa['answers']):
             continue
-        if ('yes' not in answers) and ('no' not in answers):
-            continue
+        # if ('yes' not in answers) and ('no' not in answers):
+        #     continue
         input_head = tokenizer('<yes><no>')
         input_tail = tokenizer('Title: ' + qa['title'][0] + ' Question: ' + qa['question'] + ' Scenario: ' + qa['scenario']) 
 
@@ -177,8 +177,8 @@ def convert_examples_to_inputs(examples, tokenizer, args):
         
         ### iterate in article sentences
         for sentence in qa['document']:
-            # if sentence['is_evidence'] == 'irrelevant':
-            #     continue
+            if sentence['is_evidence'] == 'irrelevant':
+                continue
             tokens = sentence['tokens']
             global_mask_sentence = torch.zeros(tokens.shape[0])
             global_mask_sentence[0] = 1.

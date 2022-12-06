@@ -1,6 +1,6 @@
 import os
 import torch
-from transformers import LongformerModel, LongformerTokenizerFast
+from transformers import LongformerModel, LongformerTokenizerFast, RobertaTokenizerFast
 from tqdm import tqdm
 from copy import copy
 import sklearn.metrics as metrics
@@ -33,7 +33,8 @@ def init_logger(path, sep=' ', end='\n'):
 
 class Tokenizer:
     def __init__(self, model_root):
-        self.tokenizer = LongformerTokenizerFast.from_pretrained(os.path.join(model_root, 'LongformerTokenizer'))
+        # self.tokenizer = LongformerTokenizerFast.from_pretrained(os.path.join(model_root, 'LongformerTokenizer'))
+        self.tokenizer = RobertaTokenizerFast.from_pretrained('roberta-base')
         self.tokenizer.special_tokens_map.update({'yes_token':'<yes>','no_token':'<no>','na_token':'<na>'})
         self.tokenizer.add_tokens(
             ['<s>','<h1>','<h2>','<h3>','<h4>','<p>','<li>','<tr>',
@@ -180,10 +181,9 @@ def compare(pred_file='outputs/output', ref_file='../condqa_files/data/dev.json'
       pass
   f1s = 0
   for qid in qid2references.keys():
-    em, conditional_em, f1, conditional_f1 = compute_metrics(
-    qid2predictions[qid], qid2references[qid])
-    f1s += f1
-    with open(compare_file, 'a') as file:
-      file.write(str([qid, f1, [i[0] for i in qid2predictions[qid]], [i[0] for i in qid2references[qid]]]) + '\n')
-  print(f1s)
+    if any(ans[1] for ans in qid2references[qid]):
+        em, conditional_em, f1, conditional_f1 = compute_metrics(
+        qid2predictions[qid], qid2references[qid])
+        with open(compare_file, 'a') as file:
+            file.write(str([qid, conditional_f1, [i[0] for i in qid2predictions[qid]], [i[0] for i in qid2references[qid]]]) + '\n')
     

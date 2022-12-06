@@ -4,7 +4,7 @@ import os
 import argparse
 from utils import input_to_batch, Tokenizer, init_logger
 from model.modelling_hpt import HPTModel
-os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3'
+os.environ["CUDA_VISIBLE_DEVICES"] = '2,3'
 os.environ["CUDA_LAUNCH_BLOCKING"] = '1'
 parser = argparse.ArgumentParser()
 parser.add_argument('--logdir', default='defaultlog.txt', type=str)
@@ -28,7 +28,7 @@ parser.add_argument('--ha_num_heads', type=int, default=12)
 parser.add_argument('--ha_hidden_size', type=int, default=64)
 parser.add_argument('--output_file', type=str, default='outputs/output')
 parser.add_argument('--inference_data', type=str, default='dev_data')
-parser.add_argument('--repeat', type=int, default=10)
+parser.add_argument('--repeat', type=int, default=5)
 
 
 args = parser.parse_args()
@@ -56,7 +56,8 @@ def main():
         if start > 0:
             model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
         else:
-            print('initializing model from longformer-base-4096')
+            # print('initializing model from longformer-base-4096')
+            print('initializing model from roberta-base')
             torch.save(model.state_dict(), os.path.join(args.model_root, 'model_current.pt'))
         model.train(train_inputs)
 
@@ -72,7 +73,7 @@ def main():
         model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
 
         logger.log(f'epoch_{start + 1}')
-        metric = model.answering_questions(dev_inputs, 2)
+        metric = model.answering_questions(dev_inputs, 5)
         try:
             with open(os.path.join(args.model_root, 'result.txt'), 'r') as file:
                 best_performance = float(file.readlines()[0])
