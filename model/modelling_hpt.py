@@ -525,10 +525,6 @@ class HPTModel(nn.Module):
                 (fk, auc, threshold, p, r))
 
             thresholds.append(threshold)
-        thresholds[2] = 0
-        thresholds[3] = 0
-        thresholds[4] = 1
-        # thresholds[-1] = 1.0
 
         return thresholds
 
@@ -615,7 +611,7 @@ class HPTModel(nn.Module):
                             for start, end in pred_condition_start_end:
                                 pred_conditions.append(self.tokenizer.decode(text_ids[start: end + 1]))
                             if pred_answer != '':
-                            # if pred_answer in ['<yes>', '<no>']: #NOTE for yes/no test
+                                # if pred_answer in ['<yes>', '<no>']: #NOTE for yes/no test
                                 if '<yes>' in pred_answer:#NOTE for condition test
                                     pred_answer = 'yes'
                                 if '<no>' in pred_answer:

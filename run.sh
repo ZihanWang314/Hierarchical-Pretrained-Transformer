@@ -4,7 +4,7 @@ data_root=../condqa_files/data
 model_root=../condqa_files/model
 
 # rm "${model_root}/result.txt"
-logdir=1206_roberta_nocl_all_cutinput #globalattention.txt
+logdir=1206_longformer_curriculum #globalattention.txt
 
 for i in {0..50..1}
 do

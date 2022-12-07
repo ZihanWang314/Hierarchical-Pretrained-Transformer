@@ -4,7 +4,7 @@ import os
 import argparse
 from utils import input_to_batch, Tokenizer, init_logger
 from model.modelling_hpt import HPTModel
-os.environ["CUDA_VISIBLE_DEVICES"] = '2,3'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2,3'
 os.environ["CUDA_LAUNCH_BLOCKING"] = '1'
 parser = argparse.ArgumentParser()
 parser.add_argument('--logdir', default='defaultlog.txt', type=str)
@@ -57,9 +57,11 @@ def main():
         if start > 0:
             model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
         else:
-            print('initializing model from longformer-base-4096')
-            # print('initializing model from roberta-base')
-            torch.save(model.state_dict(), os.path.join(args.model_root, 'model_current.pt'))
+            # print('initializing model from longformer-base-4096')
+            # torch.save(model.state_dict(), os.path.join(args.model_root, 'model_current.pt'))
+            print('initializing model from model_1st.pt')
+            model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_1st.pt'), map_location='cpu'))
+            # torch.save(model.state_dict(), os.path.join(args.model_root, 'model_current.pt'))
         model.train(train_inputs)
 
     elif args.mode == 'inference':

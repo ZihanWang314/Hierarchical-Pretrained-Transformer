@@ -1,25 +1,22 @@
-train without CL without condition:
-extractive 
-f1_score:0.5808, auc:0.9844, threshold for best_f1:0.9907, prec:0.5491, recall:0.6163 
-yes 
-f1_score:0.7869, auc:0.9205, threshold for best_f1:0.9150, prec:0.6906, recall:0.9143 
-no 
-f1_score:0.5674, auc:0.8794, threshold for best_f1:0.9668, prec:0.4598, recall:0.7407 
-condition 
-f1_score:0.0060, auc:0.4803, threshold for best_f1:0.9976, prec:0.0030, recall:0.9429 
-testing on test inputs 
-metric: {'total': {'EM': 0.5188592600673855, 'EM_with_conditions': 0.27717086664266016, 'F1': 0.5621070617417203, 'F1_with_conditions': 0.27736702075021197}, 'yesno': {'EM': 0.6814750806237796, 'EM_with_conditions': 0.5098200187154871, 'F1': 0.6814750806237796, 'F1_with_conditions': 0.5098200187154871}, 'extractive': {'EM': 0.34706212960940896, 'EM_with_conditions': 0.0006987056003397095, 'F1': 0.4433560630249195, 'F1_with_conditions': 0.001135454980435528}, 'conditional': {'EM': 0.5269733711769314, 'EM_with_conditions': 0.041102132013388616, 'F1': 0.5580124545587196, 'F1_with_conditions': 0.041989495833265826}} 
-total: 1.080966 
+使用当前的framework，最新结果（弱化版）：
 
-train with hpt CL without condition & [1, 1, 0.5, 0]:
-extractive 
-f1_score:0.6032, auc:0.9695, threshold for best_f1:0.8198, prec:0.5984, recall:0.6082 
+简单文档，无pretraining，无cl，无早停，无curriculum learning(model_1st.pt)
+对yes/no没有过度自信现象
+type 
+f1_score:0.6073, auc:0.8146, threshold for best_f1:0.0008, prec:0.5133, recall:0.7436 
+evidence 
+f0.1_score:0.9905, auc:0.9980, threshold for best_f1:0.3137, prec:0.9757, recall:0.9920 
+answers 
+f1_score:0.7761, auc:0.9611, threshold for best_f1:0.6938, prec:0.7716, recall:0.7807 
 yes 
-f1_score:0.7460, auc:0.8932, threshold for best_f1:0.7505, prec:0.6395, recall:0.8952 
+f1_score:0.7857, auc:0.9119, threshold for best_f1:0.0124, prec:0.6748, recall:0.9402 
 no 
-f1_score:0.5800, auc:0.8787, threshold for best_f1:0.9976, prec:0.6304, recall:0.5370 
+f1_score:0.6143, auc:0.8782, threshold for best_f1:0.4690, prec:0.5513, recall:0.6935 
+extractive 
+f1_score:0.8501, auc:0.9727, threshold for best_f1:0.6763, prec:0.8554, recall:0.8449 
 condition 
-f1_score:0.0078, auc:0.5460, threshold for best_f1:1.0000, prec:0.0039, recall:0.3714 
-testing on test inputs 
-metric: {'total': {'EM': 0.5173624681804405, 'EM_with_conditions': 0.4014996212420777, 'F1': 0.5517086976526929, 'F1_with_conditions': 0.4325988128587376}, 'yesno': {'EM': 0.6889384029200812, 'EM_with_conditions': 0.4924094635948063, 'F1': 0.6889384029200812, 'F1_with_conditions': 0.4924094635948063}, 'extractive': {'EM': 0.3666414985457337, 'EM_with_conditions': 0.32822530281199114, 'F1': 0.4431155251050455, 'F1_with_conditions': 0.39746959664596015}, 'conditional': {'EM': 0.6008610271550273, 'EM_with_conditions': 0.07671957671957673, 'F1': 0.626835457580688, 'F1_with_conditions': 0.08800502636993784}} 
-total: 1.069071 
+f1_score:0.5275, auc:0.9181, threshold for best_f1:0.7012, prec:0.4898, recall:0.5714 
+metric: {'total': {'EM': 0.5854925454236096, 'EM_with_conditions': 0.4692502820559657, 'F1': 0.6397759817200049, 'F1_with_conditions': 0.5194348813779373}, 'yesno': {'EM': 0.6872897394071938, 'EM_with_conditions': 0.4964119053296995, 'F1': 0.6872897394071938, 'F1_with_conditions': 0.4964119053296995}, 'extractive': {'EM': 0.4811167399257812, 'EM_with_conditions': 0.43554240565471275, 'F1': 0.601982203554474, 'F1_with_conditions': 0.5472815525825402}, 'conditional': {'EM': 0.5927021743921267, 'EM_with_conditions': 0.2776069897035541, 'F1': 0.6277507842427831, 'F1_with_conditions': 0.2986483892050602}} 
+能够稳定达到这个结果
+
+原始文档，无pretraining，无cl，无早停，有curriculum learning
