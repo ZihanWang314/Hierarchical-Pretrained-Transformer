@@ -34,7 +34,8 @@ def init_logger(path, sep=' ', end='\n'):
 class Tokenizer:
     def __init__(self, model_root):
         # self.tokenizer = LongformerTokenizerFast.from_pretrained(os.path.join(model_root, 'LongformerTokenizer'))
-        self.tokenizer = RobertaTokenizerFast.from_pretrained('roberta-base')
+        self.tokenizer = LongformerTokenizerFast.from_pretrained('allenai/longformer-base-4096')
+        # self.tokenizer = RobertaTokenizerFast.from_pretrained('roberta-base')
         self.tokenizer.special_tokens_map.update({'yes_token':'<yes>','no_token':'<no>','na_token':'<na>'})
         self.tokenizer.add_tokens(
             ['<s>','<h1>','<h2>','<h3>','<h4>','<p>','<li>','<tr>',
@@ -174,14 +175,18 @@ def to_numpy(*args):
     return [arg.detach().cpu().tolist() for arg in args]
 
 
-def compare(pred_file='outputs/output', ref_file='../condqa_files/data/dev.json',compare_file='outputs/compare.out'):
+def compare(mode='train',pred_file='outputs/output',compare_file='outputs/compare.out'):
+  if mode == 'train':
+    ref_file='../condqa_files/data/train.json'
+  else:
+    ref_file='../condqa_files/data/dev.json'
   qid2predictions = load_answers(pred_file)
   qid2references = load_answers(ref_file)
   with open(compare_file, 'w') as file:
       pass
   f1s = 0
   for qid in qid2references.keys():
-    if any(ans[1] for ans in qid2references[qid]):
+    # if any(ans[1] for ans in qid2references[qid]): # for conditional evaluation 
         em, conditional_em, f1, conditional_f1 = compute_metrics(
         qid2predictions[qid], qid2references[qid])
         with open(compare_file, 'a') as file:

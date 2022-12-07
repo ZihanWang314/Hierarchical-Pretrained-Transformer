@@ -29,6 +29,7 @@ parser.add_argument('--ha_hidden_size', type=int, default=64)
 parser.add_argument('--output_file', type=str, default='outputs/output')
 parser.add_argument('--inference_data', type=str, default='dev_data')
 parser.add_argument('--repeat', type=int, default=5)
+parser.add_argument('--only_need_to_predict_conditions', action='store_true')
 
 
 args = parser.parse_args()
@@ -56,8 +57,8 @@ def main():
         if start > 0:
             model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
         else:
-            # print('initializing model from longformer-base-4096')
-            print('initializing model from roberta-base')
+            print('initializing model from longformer-base-4096')
+            # print('initializing model from roberta-base')
             torch.save(model.state_dict(), os.path.join(args.model_root, 'model_current.pt'))
         model.train(train_inputs)
 
@@ -67,8 +68,7 @@ def main():
         elif args.inference_data == 'dev_data':
             dev_inputs = torch.load(os.path.join(args.data_root, 'dev_inputs'))
 
-        dev_inputs = [[j.cuda() for j in i] for i in dev_inputs] 
-        dev_inputs = input_to_batch(dev_inputs, batch_size = 16, distributed = False) 
+        dev_inputs = input_to_batch(dev_inputs, batch_size = 4, distributed = False) 
         model = HPTModel(args)
         model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
 

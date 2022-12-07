@@ -1,0 +1,128 @@
+
+epoch_2 
+type 
+f1_score:0.5249, auc:0.7482, threshold for best_f1:0.3716, prec:0.4056, recall:0.7436 
+evidence 
+f0.1_score:0.9899, auc:0.9936, threshold for best_f1:0.6025, prec:0.9765, recall:0.9912 
+answers 
+f1_score:0.6994, auc:0.9515, threshold for best_f1:0.6260, prec:0.5765, recall:0.8892 
+yes 
+f1_score:0.7889, auc:0.9011, threshold for best_f1:0.5742, prec:0.6628, recall:0.9744 
+no 
+f1_score:0.5497, auc:0.8526, threshold for best_f1:0.6152, prec:0.4312, recall:0.7581 
+extractive 
+f1_score:0.7678, auc:0.9731, threshold for best_f1:0.8765, prec:0.7093, recall:0.8367 
+condition 
+f1_score:0.4259, auc:0.9209, threshold for best_f1:0.7920, prec:0.3544, recall:0.5333 
+testing on test inputs 
+metric: {'total': {'EM': 0.45180400187574593, 'EM_with_conditions': 0.29722137198701115, 'F1': 0.5310535871628335, 'F1_with_conditions': 0.3674292712712547}, 'yesno': {'EM': 0.6643356643356644, 'EM_with_conditions': 0.37375060836599305, 'F1': 0.6643356643356644, 'F1_with_conditions': 0.37375060836599305}, 'extractive': {'EM': 0.26378234792646565, 'EM_with_conditions': 0.24423245328094687, 'F1': 0.4402365026672462, 'F1_with_conditions': 0.4005547290310206}, 'conditional': {'EM': 0.5872553446094326, 'EM_with_conditions': 0.25303233638261663, 'F1': 0.6386889817224518, 'F1_with_conditions': 0.26862193665162737}} 
+total: 0.982858 
+epoch_3 
+type 
+f1_score:0.5786, auc:0.7894, threshold for best_f1:0.5356, prec:0.5679, recall:0.5897 
+evidence 
+f0.1_score:0.9903, auc:0.9934, threshold for best_f1:0.8037, prec:0.9811, recall:0.9912 
+answers 
+f1_score:0.7422, auc:0.9645, threshold for best_f1:0.6064, prec:0.6457, recall:0.8726 
+yes 
+f1_score:0.7954, auc:0.9119, threshold for best_f1:0.6079, prec:0.7143, recall:0.8974 
+no 
+f1_score:0.5641, auc:0.8616, threshold for best_f1:0.4319, prec:0.4135, recall:0.8871 
+extractive 
+f1_score:0.8088, auc:0.9819, threshold for best_f1:0.7954, prec:0.7358, recall:0.8980 
+condition 
+f1_score:0.4789, auc:0.9286, threshold for best_f1:0.8672, prec:0.4481, recall:0.5143 
+testing on test inputs 
+metric: {'total': {'EM': 0.4933254001872328, 'EM_with_conditions': 0.364105185528795, 'F1': 0.5660367409902037, 'F1_with_conditions': 0.4331579979233043}, 'yesno': {'EM': 0.6713286713286714, 'EM_with_conditions': 0.4381029227183073, 'F1': 0.6713286713286714, 'F1_with_conditions': 0.4381029227183073}, 'extractive': {'EM': 0.3484198363543857, 'EM_with_conditions': 0.3212598431795989, 'F1': 0.5103161811110004, 'F1_with_conditions': 0.47501024577674833}, 'conditional': {'EM': 0.6221710092341501, 'EM_with_conditions': 0.22807956196978874, 'F1': 0.6533626664393288, 'F1_with_conditions': 0.2427207335176414}} 
+total: 1.059362 
+epoch_4 
+type 
+f1_score:0.5285, auc:0.7787, threshold for best_f1:0.6777, prec:0.4435, recall:0.6538 
+evidence 
+f0.1_score:0.9902, auc:0.9940, threshold for best_f1:0.8730, prec:0.9803, recall:0.9912 
+answers 
+f1_score:0.7439, auc:0.9637, threshold for best_f1:0.6548, prec:0.6536, recall:0.8632 
+yes 
+f1_score:0.8106, auc:0.9167, threshold for best_f1:0.5142, prec:0.7279, recall:0.9145 
+no 
+f1_score:0.5922, auc:0.8737, threshold for best_f1:0.4211, prec:0.4530, recall:0.8548 
+extractive 
+f1_score:0.8240, auc:0.9846, threshold for best_f1:0.9443, prec:0.7831, recall:0.8694 
+condition 
+f1_score:0.4432, auc:0.9231, threshold for best_f1:0.8926, prec:0.3679, recall:0.5571 
+testing on test inputs 
+metric: {'total': {'EM': 0.47628864327963394, 'EM_with_conditions': 0.3143713250445694, 'F1': 0.5547400705151088, 'F1_with_conditions': 0.3884310004478485}, 'yesno': {'EM': 0.6643356643356644, 'EM_with_conditions': 0.3690183747876055, 'F1': 0.6643356643356644, 'F1_with_conditions': 0.3690183747876055}, 'extractive': {'EM': 0.31829893230231004, 'EM_with_conditions': 0.28770468783652103, 'F1': 0.49297593825629676, 'F1_with_conditions': 0.45260318385163467}, 'conditional': {'EM': 0.6113845156260992, 'EM_with_conditions': 0.26977504186829027, 'F1': 0.6447850268029799, 'F1_with_conditions': 0.28399740809055235}} 
+total: 1.031029 
+epoch_5 
+type 
+f1_score:0.5091, auc:0.7740, threshold for best_f1:0.0416, prec:0.3944, recall:0.7179 
+evidence 
+f0.1_score:0.9906, auc:0.9950, threshold for best_f1:0.9360, prec:0.9842, recall:0.9912 
+answers 
+f1_score:0.7476, auc:0.9657, threshold for best_f1:0.6631, prec:0.6723, recall:0.8420 
+yes 
+f1_score:0.8016, auc:0.9168, threshold for best_f1:0.4661, prec:0.7615, recall:0.8462 
+no 
+f1_score:0.5957, auc:0.8692, threshold for best_f1:0.6631, prec:0.5316, recall:0.6774 
+extractive 
+f1_score:0.8365, auc:0.9868, threshold for best_f1:0.9351, prec:0.7829, recall:0.8980 
+condition 
+f1_score:0.4793, auc:0.9262, threshold for best_f1:0.8647, prec:0.4418, recall:0.5238 
+testing on test inputs 
+metric: {'total': {'EM': 0.5001920064858065, 'EM_with_conditions': 0.3542452860936693, 'F1': 0.5691241964782343, 'F1_with_conditions': 0.41823878661037855}, 'yesno': {'EM': 0.6643356643356644, 'EM_with_conditions': 0.4014479110632957, 'F1': 0.6643356643356644, 'F1_with_conditions': 0.4014479110632957}, 'extractive': {'EM': 0.371521264441054, 'EM_with_conditions': 0.34025668167691026, 'F1': 0.5250030937210683, 'F1_with_conditions': 0.48274221017114516}, 'conditional': {'EM': 0.6323026122389025, 'EM_with_conditions': 0.19428967078240855, 'F1': 0.6684747570820712, 'F1_with_conditions': 0.21197025011319734}} 
+total: 1.069316 
+epoch_6 
+type 
+f1_score:0.5806, auc:0.8226, threshold for best_f1:0.2578, prec:0.5000, recall:0.6923 
+evidence 
+f0.1_score:0.9906, auc:0.9969, threshold for best_f1:0.9346, prec:0.9842, recall:0.9912 
+answers 
+f1_score:0.7823, auc:0.9729, threshold for best_f1:0.4602, prec:0.6927, recall:0.8986 
+yes 
+f1_score:0.7944, auc:0.9218, threshold for best_f1:0.4680, prec:0.6706, recall:0.9744 
+no 
+f1_score:0.5871, auc:0.8705, threshold for best_f1:0.1202, prec:0.4245, recall:0.9516 
+extractive 
+f1_score:0.8458, auc:0.9849, threshold for best_f1:0.9126, prec:0.8638, recall:0.8286 
+condition 
+f1_score:0.4942, auc:0.9317, threshold for best_f1:0.6899, prec:0.4156, recall:0.6095 
+testing on test inputs 
+metric: {'total': {'EM': 0.49265757897172363, 'EM_with_conditions': 0.3556718746572443, 'F1': 0.5575261850135521, 'F1_with_conditions': 0.41670520218873597}, 'yesno': {'EM': 0.6713286713286714, 'EM_with_conditions': 0.4379273407245434, 'F1': 0.6713286713286714, 'F1_with_conditions': 0.4379273407245434}, 'extractive': {'EM': 0.3469328906792286, 'EM_with_conditions': 0.30267870745081965, 'F1': 0.49136689631923675, 'F1_with_conditions': 0.43857322578265606}, 'conditional': {'EM': 0.626856726094519, 'EM_with_conditions': 0.22945279553474887, 'F1': 0.659823506572388, 'F1_with_conditions': 0.24798216529619904}} 
+total: 1.050184 
+epoch_6 
+type 
+f1_score:0.9553, auc:0.9963, threshold for best_f1:0.6045, prec:0.9387, recall:0.9726 
+evidence 
+f0.1_score:0.9938, auc:0.9983, threshold for best_f1:0.0492, prec:0.9664, recall:0.9966 
+answers 
+f1_score:0.8852, auc:0.9902, threshold for best_f1:0.6953, prec:0.8593, recall:0.9128 
+yes 
+f1_score:0.9270, auc:0.9882, threshold for best_f1:0.7617, prec:0.9190, recall:0.9351 
+no 
+f1_score:0.8529, auc:0.9774, threshold for best_f1:0.4331, prec:0.8325, recall:0.8744 
+extractive 
+f1_score:0.9090, auc:0.9943, threshold for best_f1:0.8726, prec:0.8825, recall:0.9371 
+condition 
+f1_score:0.5821, auc:0.9732, threshold for best_f1:0.8716, prec:0.5387, recall:0.6330 
+testing on test inputs 
+metric: {'total': {'EM': 0.5589944717676436, 'EM_with_conditions': 0.4938931510879959, 'F1': 0.6069098546230309, 'F1_with_conditions': 0.5390903962272544}, 'yesno': {'EM': 0.6244927000784575, 'EM_with_conditions': 0.5448959136651311, 'F1': 0.6248410682486079, 'F1_with_conditions': 0.5449619202657912}, 'extractive': {'EM': 0.5314434033793807, 'EM_with_conditions': 0.4775925989194151, 'F1': 0.6392732998950069, 'F1_with_conditions': 0.5796130425286767}, 'conditional': {'EM': 0.6290985435264584, 'EM_with_conditions': 0.3675287020060082, 'F1': 0.6571074096461246, 'F1_with_conditions': 0.3840753597167804}} 
+total: 1.165904 
+achieving best result, now saving to model_best.pt 
+epoch_7 
+type 
+f1_score:0.5772, auc:0.8071, threshold for best_f1:0.9756, prec:0.6056, recall:0.5513 
+evidence 
+f0.1_score:0.9903, auc:0.9970, threshold for best_f1:0.8486, prec:0.9811, recall:0.9912 
+answers 
+f1_score:0.7603, auc:0.9709, threshold for best_f1:0.7866, prec:0.7367, recall:0.7854 
+yes 
+f1_score:0.7847, auc:0.9070, threshold for best_f1:0.2181, prec:0.6608, recall:0.9658 
+no 
+f1_score:0.5857, auc:0.8568, threshold for best_f1:0.7627, prec:0.5256, recall:0.6613 
+extractive 
+f1_score:0.8465, auc:0.9876, threshold for best_f1:0.8389, prec:0.8175, recall:0.8776 
+condition 
+f1_score:0.4525, auc:0.9306, threshold for best_f1:0.8687, prec:0.3450, recall:0.6571 
+testing on test inputs 
+metric: {'total': {'EM': 0.49346869880106214, 'EM_with_conditions': 0.36091335220291265, 'F1': 0.5700274117530538, 'F1_with_conditions': 0.43421400349079925}, 'yesno': {'EM': 0.6713286713286714, 'EM_with_conditions': 0.44326442787981246, 'F1': 0.6713286713286714, 'F1_with_conditions': 0.44326442787981246}, 'extractive': {'EM': 0.3487388996742403, 'EM_with_conditions': 0.30838665774231966, 'F1': 0.5192016589814086, 'F1_with_conditions': 0.47159513912550455}, 'conditional': {'EM': 0.648119466230914, 'EM_with_conditions': 0.23828796245343248, 'F1': 0.6759498986531363, 'F1_with_conditions': 0.2548423737298717}} 
+total: 1.063496 

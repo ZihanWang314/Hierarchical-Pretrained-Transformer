@@ -264,7 +264,7 @@ def convert_examples_to_inputs(examples, tokenizer, args):
         input_ids = pad(input_ids, 1)
 
 
-        if any([i[1] for i in qa['answers']]):
+        if any([i[1] != [] for i in qa['answers']]):
             conditional_bool = torch.ones(1)
         else:
             conditional_bool = torch.zeros(1)

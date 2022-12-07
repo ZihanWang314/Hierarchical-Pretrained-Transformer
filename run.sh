@@ -4,17 +4,16 @@ data_root=../condqa_files/data
 model_root=../condqa_files/model
 
 # rm "${model_root}/result.txt"
-logdir=1129_roberta_nocl_only_condition_cutinput #globalattention.txt
+logdir=1206_roberta_nocl_all_cutinput #globalattention.txt
 
 for i in {0..50..1}
 do
     echo "training epoch ${i}..."
     python -m torch.distributed.run \
-        --nnodes=1 --nproc_per_node=2 --node_rank=0 --master_port=6005 main.py \
+        --nnodes=1 --nproc_per_node=4 --node_rank=0 --master_port=6005 main.py \
         --mode=train --epoch=${i} --data_root=${data_root} --model_root=${model_root} \
-        --logdir=${logdir} --accumulation_step=8 --train_condition --batch_size=2 \
-        --warmup_epoch_num=5 --total_epoch_num=50 --tqdm --repeat=5 # --contrastive_learning --contrastive_mode=hpt \
-        
+        --logdir=${logdir} --accumulation_step=2 --train_condition --batch_size=4 \
+        --warmup_epoch_num=5 --total_epoch_num=50 --tqdm --repeat=2 # --contrastive_learning --contrastive_mode=hpt \
 
     echo "evaluating..."
     python main.py \
