@@ -23,7 +23,7 @@ parser.add_argument('--contrastive_learning', action='store_true')
 parser.add_argument('--warmup_epoch_num', type=int, default=10)
 parser.add_argument('--total_epoch_num', type=int, default=100)
 parser.add_argument('--contrastive_mode', type=str, default='hpt')
-parser.add_argument('--model_hidden_size', type=int, default=768)
+parser.add_argument('--model_size', type=str, default='base')
 parser.add_argument('--ha_num_heads', type=int, default=12)
 parser.add_argument('--ha_hidden_size', type=int, default=64)
 parser.add_argument('--output_file', type=str, default='outputs/output')
@@ -33,6 +33,11 @@ parser.add_argument('--only_need_to_predict_conditions', action='store_true')
 
 
 args = parser.parse_args()
+if args.model_size == 'base':
+    args.model_hidden_size = 768
+if args.model_size == 'large':
+    args.model_hidden_size = 1024
+
 
 assert args.contrastive_mode in ['hpt', 'simcse'], 'contrastive mode definition assertion'
 if args.contrastive_learning:
@@ -57,11 +62,14 @@ def main():
         if start > 0:
             model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
         else:
-            # print('initializing model from longformer-base-4096')
-            # torch.save(model.state_dict(), os.path.join(args.model_root, 'model_current.pt'))
-            print('initializing model from model_1st.pt')
-            model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_1st.pt'), map_location='cpu'))
-            # torch.save(model.state_dict(), os.path.join(args.model_root, 'model_current.pt'))
+            if config.model_size == 'large':
+                print('initializing model from longformer-large-4096')
+            elif config.model_size == 'base':
+                print('initializing model from longformer-base-4096')
+            torch.save(model.state_dict(), os.path.join(args.model_root, 'model_current.pt'))
+
+            # print('initializing model from model_1st.pt')
+            # model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_1st.pt'), map_location='cpu'))
         model.train(train_inputs)
 
     elif args.mode == 'inference':
@@ -70,9 +78,10 @@ def main():
         elif args.inference_data == 'dev_data':
             dev_inputs = torch.load(os.path.join(args.data_root, 'dev_inputs'))
 
-        dev_inputs = input_to_batch(dev_inputs, batch_size = 4, distributed = False) 
+        dev_inputs = input_to_batch(dev_inputs, batch_size = 256, distributed = False) 
         model = HPTModel(args)
         model.load_state_dict(torch.load(os.path.join(args.model_root, 'model_current.pt'), map_location='cpu'))
+        model.activate_inference_mode()
 
         logger.log(f'epoch_{start + 1}')
         metric = model.answering_questions(dev_inputs, 5)

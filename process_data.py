@@ -1,4 +1,8 @@
 import argparse
+# import torch
+# train_data = torch.load('../condqa_files/data/dev_inputs')
+# A = [i[2].count_nonzero() for i in train_data]
+# A = torch.tensor(A)
 from copy import copy
 from tqdm import tqdm
 import torch
@@ -9,8 +13,7 @@ from utils import Tokenizer
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_root', type=str)
 parser.add_argument('--model_root', type=str)
-parser.add_argument('--doc_length', type=int, default=150)
-parser.add_argument('--doc_overlap', type=int, default=120)
+parser.add_argument('--max_len', type=int, default=1500)
 parser.add_argument('--easy_passage', action='store_true')
 parser.add_argument('--yesno_only', action='store_true')
 parser.add_argument('--conditional_only', action='store_true')
@@ -121,21 +124,28 @@ def convert_data_to_examples(documents: dict, data: list[dict], tokenizer) -> li
         examples.append(example)
     return examples
 
-def chopup_long_example(qa, length, step):
+def chopup_long_example(qa, max_len):
+    overlap = 5
     return_qas = []
     subdoc_index = [0]
-    while subdoc_index[-1] + length < len(qa['document']):
-        subdoc_index.append(subdoc_index[-1] + step)
-    for start_index in subdoc_index:
+    current_len = 0
+    for idx in range(len(qa['document'])):
+        current_len += qa['document'][idx]['tokens'].shape[0]
+        if current_len > max_len:
+            subdoc_index.append(idx + 1)
+            current_len = 0
+    subdoc_index.append(len(qa['document']))
+
+    for start_index, end_index in zip(subdoc_index[:-1], subdoc_index[1:]):
         return_qa = copy(qa)
-        return_qa['document'] = qa['document'][start_index: start_index + length]
+        return_qa['document'] = qa['document'][max(start_index - overlap, 0): end_index]
         return_qas.append(return_qa)
     return return_qas
 
 def convert_examples_to_inputs(examples, tokenizer, args):
     examples_short = []
     for qa in tqdm(examples, desc = 'checking long example..'):
-        examples_short += chopup_long_example(qa, args.doc_length, args.doc_overlap)
+        examples_short += chopup_long_example(qa, args.max_len)
     inputs = []
 
     for qa in tqdm(examples_short, desc = 'converting examples to inputs..'):

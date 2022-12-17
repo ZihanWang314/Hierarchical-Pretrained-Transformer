@@ -7,27 +7,30 @@ from utils import Tokenizer
 from tqdm import tqdm
 from torch import nn
 import os
+import inspect
 import utils
 from utils.evaluate import evaluate
 from utils import ReIndexer, to_numpy, analyze_binary_classification, dynamic_padding, Logger
 from model.contrastive_learning import ContrastiveSampler
 from typing import Optional
-
+import torch.utils.checkpoint as cp
+os.environ['TORCH_DISTRIBUTED_DEBUG'] = 'DETAIL'
 logger2 = Logger('nohup.out')
 
 class ConditionCalculator(nn.Module):
-    def __init__(self):
+    def __init__(self, config):
         super().__init__()
-        self.ff = nn.Sequential(nn.GELU(), nn.Linear(768, 3072))
-        self.q = nn.Linear(3072, 768)
-        self.k = nn.Linear(3072, 768)
+        self.config = config
+        self.ff = nn.Sequential(nn.GELU(), nn.Linear(self.config.model_hidden_size, self.config.model_hidden_size * 4))
+        self.qk = nn.Linear(self.config.model_hidden_size * 4, self.config.model_hidden_size * 2)
         
 
     def forward(self, hidden_states, mask_r):
         hidden_states = self.ff(hidden_states)
-        q = self.q(hidden_states)
-        k = self.k(hidden_states)
-        scores = torch.einsum('abh,ach->abc', q, k) / (768 ** 0.5)
+        qk = self.qk(hidden_states)
+        q = qk[..., :self.config.model_hidden_size]
+        k = qk[..., self.config.model_hidden_size:]
+        scores = torch.einsum('abh,ach->abc', q, k) / (self.config.model_hidden_size ** 0.5)
         scores -= (1 - mask_r.float()[..., None]) * 1000
         
         return scores
@@ -84,31 +87,76 @@ class HierarchicalTransformerAttention(nn.Module):
         layer_output = indexer.recover_index(layer_output)
         return layer_output
 
+class HierarchicalTransformerLayer(nn.Module):
+    def __init__(self, config, longformer_layer, num):
+        super().__init__()
+        self.num = num
+        self.attention = longformer_layer.attention
+        self.intermediate = longformer_layer.intermediate
+        self.output = longformer_layer.output
+        self.chunk_size_feed_forward = config.modelconfig.chunk_size_feed_forward
+        self.seq_len_dim = 1
 
+    def forward(self, input):
+        hidden_states = input[0]
+        attention_mask = input[1]
+        is_index_masked = attention_mask < 0
+        is_index_global_attn = attention_mask > 0
+        is_global_attn = is_index_global_attn.flatten().any().item()
+        if (self.num + 1) % 1 == 0: # use cp.checkpoint for every layer
+            self_attn_outputs = cp.checkpoint(lambda hidden_states, attention_mask, is_index_masked, \
+                is_index_global_attn, is_global_attn: 
+                self.attention(
+                    hidden_states,
+                    attention_mask=attention_mask,
+                    layer_head_mask=None,
+                    is_index_masked=is_index_masked,
+                    is_index_global_attn=is_index_global_attn,
+                    is_global_attn=is_global_attn,
+                    output_attentions=False,
+                ), 
+                hidden_states, attention_mask, is_index_masked, is_index_global_attn, is_global_attn
+            )
+        else: # do not use cp.checkpoint
+            self_attn_outputs = self.attention(
+                    hidden_states,
+                    attention_mask=attention_mask,
+                    layer_head_mask=None,
+                    is_index_masked=is_index_masked,
+                    is_index_global_attn=is_index_global_attn,
+                    is_global_attn=is_global_attn,
+                    output_attentions=False,
+                )
+        attn_output = self_attn_outputs[0]
 
+        layer_output = self.ff_chunk(attn_output)
+        
+        return [layer_output, attention_mask.clone()]
+
+    def ff_chunk(self, attn_output):
+        intermediate_output = self.intermediate(attn_output)
+        layer_output = self.output(intermediate_output, attn_output)
+        return layer_output
 
 class HierarchicalTransformerEncoder(nn.Module):
     def __init__(self, config, longformer_encoder):
         super().__init__()
-        self.layer = longformer_encoder.layer
+        self.layer = nn.Sequential(*[HierarchicalTransformerLayer(config, layer, num) for num, layer in enumerate(longformer_encoder.layer)])
         # self.head_attentions = nn.ModuleList([HierarchicalTransformerAttention(config) for _ in range(3)])
 
     def forward(self, hidden_states, attention_mask, padding_len, level_hierarchy):
-        is_index_masked = attention_mask < 0
-        is_index_global_attn = attention_mask > 0
-        is_global_attn = is_index_global_attn.flatten().any().item()
-
-        for idx, layer_module in enumerate(self.layer):
-            layer_outputs = layer_module(
-                hidden_states,
-                attention_mask=attention_mask,
-                is_index_masked=is_index_masked,
-                is_index_global_attn=is_index_global_attn,
-                is_global_attn=is_global_attn,
-            )
-            hidden_states = layer_outputs[0]
-            # if idx >= 9:
-            #     hidden_states = self.head_attentions[idx - 9](hidden_states, level_hierarchy) # additional attention for our task
+        input = [hidden_states, attention_mask.clone()]
+        hidden_states, _ = self.layer(input)
+        # non-cp version
+        # for idx, layer_module in enumerate(self.layer):
+        #     layer_outputs = layer_module(
+        #         hidden_states,
+        #         attention_mask=attention_mask,
+        #         is_index_masked=is_index_masked,
+        #         is_index_global_attn=is_index_global_attn,
+        #         is_global_attn=is_global_attn,
+        #     )
+        #     hidden_states = layer_outputs[0]
 
         # undo padding
         if padding_len > 0:
@@ -123,10 +171,16 @@ class HierarchicalTransformer(nn.Module):
         # modelconfig.attention_window = 128
         # longformer = RobertaModel(modelconfig)
         # checkpoint = RobertaModel.from_pretrained('roberta-base')
-        modelconfig = LongformerConfig.from_pretrained('allenai/longformer-base-4096')
-        modelconfig.attention_window = 128
+        if config.model_size == 'base':
+            modelconfig = LongformerConfig.from_pretrained('allenai/longformer-base-4096')
+            checkpoint = LongformerModel.from_pretrained('allenai/longformer-base-4096')
+        elif config.model_size == 'large':
+            modelconfig = LongformerConfig.from_pretrained('allenai/longformer-large-4096')
+            checkpoint = LongformerModel.from_pretrained('allenai/longformer-large-4096')
+
+        modelconfig.attention_window = 256
+        config.modelconfig = modelconfig
         longformer = LongformerModel(modelconfig)
-        checkpoint = LongformerModel.from_pretrained('allenai/longformer-base-4096')
         longformer.load_state_dict(checkpoint.state_dict())
         longformer.resize_token_embeddings(50282)
 
@@ -197,14 +251,14 @@ class HPTEncoder(nn.Module):
         # self.head_attention = nn.MultiheadAttention(768, 12, 0.1, batch_first=True)
         # self.head_attention = nn.Identity() #NOTE for test
 
-        self.evidence_probe = nn.Linear(768, 1)
-        self.yes_probe = nn.Linear(768, 1)
-        self.no_probe = nn.Linear(768, 1)
-        self.extractive_probe = nn.Linear(768, 1)
-        self.span_probe = nn.Linear(768, 2)
-        self.type_probe = nn.Linear(768, 1)
+        self.evidence_probe = nn.Linear(config.model_hidden_size, 1)
+        self.yes_probe = nn.Linear(config.model_hidden_size, 1)
+        self.no_probe = nn.Linear(config.model_hidden_size, 1)
+        self.extractive_probe = nn.Linear(config.model_hidden_size, 1)
+        self.span_probe = nn.Linear(config.model_hidden_size, 2)
+        self.type_probe = nn.Linear(config.model_hidden_size, 1)
 
-        self.condition_calculator = ConditionCalculator()
+        self.condition_calculator = ConditionCalculator(config)
         
         if config.contrastive_learning:
             self.con_sampler = ContrastiveSampler(config)
@@ -233,9 +287,9 @@ class HPTEncoder(nn.Module):
             index = pair.unsqueeze(2).repeat(1, 1, hidden.shape[-1])
             hiddens_selected = torch.gather(hidden, 1, index)
             origin_hidden, new_hidden = hiddens_selected[0], hiddens_selected[1]
-            hidden_similarity_map = torch.einsum('ac,bc->ab', new_hidden, origin_hidden) / (768 ** 0.5)
+            hidden_similarity_map = torch.einsum('ac,bc->ab', new_hidden, origin_hidden) / (self.config.model_hidden_size ** 0.5)
             denominator = hidden_similarity_map.exp().sum(1)
-            contrastive_similarity = (origin_hidden * new_hidden).sum(-1) / (768 ** 0.5)
+            contrastive_similarity = (origin_hidden * new_hidden).sum(-1) / (self.config.model_hidden_size ** 0.5)
             numerator = contrastive_similarity.exp()
             pointwise_loss = - torch.log (numerator / (denominator + 1e-8))
             contrastive_loss = pointwise_loss.mean()
@@ -289,7 +343,6 @@ class HPTEncoder(nn.Module):
             last_hidden = last_hidden_all[::2]
         else:
             last_hidden = last_hidden_all
-
         pred_type = self.type_probe(last_hidden[:, 0]).flatten()
         label_type = conditional_bool.flatten()
         loss_type = self.weighted_loss(pred_type, label_type)
@@ -297,7 +350,6 @@ class HPTEncoder(nn.Module):
         pred_span = self.span_probe(last_hidden)[mask_label_answer_span != 0]
         label_span = (mask_label_answer_span[mask_label_answer_span != 0] + 1) / 2
         loss_span = self.weighted_loss(pred_span, label_span)
-
         # evidence loss / answersentence loss / condition_loss need re-index 
         # re-index process
         indexer = ReIndexer()
@@ -327,7 +379,6 @@ class HPTEncoder(nn.Module):
 
         loss_yesno = (self.weighted_loss(pred_yes, label_yes) + self.weighted_loss(pred_no, label_no)) /2
         loss_extractive = self.weighted_loss(pred_extractive, label_extractive)
-        
         # predict condition and predict.
         pred_condition = self.condition_calculator(last_hidden_r, mask_r)
         # get label condition
@@ -342,16 +393,21 @@ class HPTEncoder(nn.Module):
         pred_condition = pred_condition[mask_r!=0]
         label_condition = label_condition[mask_r!=0]
         loss_condition = self.weighted_loss(pred_condition, label_condition)
-
         loss_total = self.type_weight * loss_type + self.evidence_weight * loss_evidence + self.yesno_weight * loss_yesno + \
             self.extractive_weight * loss_extractive + self.span_weight * loss_span + self.condition_weight * loss_condition
 
+        maybe_unused_modules = [self.evidence_probe, self.yes_probe, self.no_probe, self.extractive_probe, \
+            self.span_probe, self.type_probe, self.condition_calculator]
+        for module in maybe_unused_modules:
+            for param in module.parameters():
+                loss_total += param.sum() * 0
         
         if self.config.contrastive_learning:
             last_hidden_resized = last_hidden_all.reshape(last_hidden_all.shape[0] // 2, 2, last_hidden_all.shape[1], last_hidden_all.shape[2])
             contrastive_loss = self.contrastive_loss(last_hidden_resized, contrastive_pairs)
             loss_total += self.contrastive_weight * contrastive_loss * (loss_evidence.detach() / contrastive_loss.detach()) # contrastive loss will be normalized
             return loss_total, to_numpy(loss_type, loss_evidence, loss_yesno, loss_extractive, loss_span, loss_condition, contrastive_loss)
+
 
         return loss_total, to_numpy(loss_type, loss_evidence, loss_yesno, loss_extractive, loss_span, loss_condition)
 
@@ -365,7 +421,8 @@ class HPTModel(nn.Module):
         self.lr_warmup_weight = min((config.epoch + 1) / config.warmup_epoch_num, 1)
         self.lr_decay_weight = min(1, (config.total_epoch_num - config.epoch) / (config.total_epoch_num - config.warmup_epoch_num))
         self.optimizer = torch.optim.AdamW([
-            {'params':self.encoder.parameters(), 'lr':3e-5 * self.lr_warmup_weight * self.lr_decay_weight, 'weight_decay':0.01},
+            {'params':self.encoder.parameters(), 'lr':3e-5 * self.lr_warmup_weight * self.lr_decay_weight, 'weight_decay':0.01, \
+                'betas': (0.9, 0.98)},
         ])
         self.optimizer.zero_grad()
         self.scaler = torch.cuda.amp.GradScaler()
@@ -380,7 +437,7 @@ class HPTModel(nn.Module):
             self.to('cpu')
             self.cuda(self.config.local_rank)
             self.encoder = torch.nn.parallel.DistributedDataParallel(
-                self.encoder, device_ids=[self.config.local_rank], output_device=self.config.local_rank, find_unused_parameters=True
+                self.encoder, device_ids=[self.config.local_rank], output_device=self.config.local_rank, find_unused_parameters=False
                 )
             self.encoder.module.transformer.train()
         except:
@@ -389,12 +446,12 @@ class HPTModel(nn.Module):
 
     def activate_inference_mode(self):
         # inference with DP
-        # if self.mode != None:
-        #     self.activate_normal_mode()
+        if self.mode != None:
+            self.activate_normal_mode()
         self.to('cuda:0')
-        # self.encoder.transformer = torch.nn.DataParallel(self.encoder.transformer, device_ids=[0,1,2,3])
+        self.encoder.transformer = torch.nn.DataParallel(self.encoder.transformer, device_ids=[0,1,2,3])
         self.encoder.eval()
-        # self.mode = 'eval'
+        self.mode = 'eval'
 
     def activate_normal_mode(self):
         #non-paralleled mode
@@ -525,6 +582,7 @@ class HPTModel(nn.Module):
                 (fk, auc, threshold, p, r))
 
             thresholds.append(threshold)
+        thresholds[0], thresholds[3], thresholds[4], thresholds[5], thresholds[6] = 0.5, 0.5, 0.5, 0.5, 0.5
 
         return thresholds
 
@@ -556,8 +614,8 @@ class HPTModel(nn.Module):
                         text_ids = input_ids[sample_index].cuda(last_hidden.device)
                         index_heads = mask_heads[sample_index].nonzero().flatten()
                         id_example = qa_id[sample_index].tolist()
-                        pred_type = self.encoder.type_probe(last_hidden[0]).sigmoid() > thre_type
-
+                        pred_type = self.encoder.type_probe(last_hidden[0]).sigmoid()
+                        pred_type = pred_type  > thre_type
                         global_mask = global_masks[sample_index].nonzero().flatten()
                         index_end = global_mask[global_mask > index_heads.max()].min().unsqueeze(0)
                         range_answer_span = torch.concat([
@@ -626,8 +684,6 @@ class HPTModel(nn.Module):
                                                 i[0][1] = list(set(i[0][1]))
                                 else:
                                     output.update({id_example:[pred_type, [[pred_answer, pred_conditions], prob]]})
-
-
             output_real = []
             def answers_to_list(answers):
                 conditional = answers[0]

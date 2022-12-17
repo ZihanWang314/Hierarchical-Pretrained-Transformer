@@ -18,5 +18,7 @@ condition
 f1_score:0.5275, auc:0.9181, threshold for best_f1:0.7012, prec:0.4898, recall:0.5714 
 metric: {'total': {'EM': 0.5854925454236096, 'EM_with_conditions': 0.4692502820559657, 'F1': 0.6397759817200049, 'F1_with_conditions': 0.5194348813779373}, 'yesno': {'EM': 0.6872897394071938, 'EM_with_conditions': 0.4964119053296995, 'F1': 0.6872897394071938, 'F1_with_conditions': 0.4964119053296995}, 'extractive': {'EM': 0.4811167399257812, 'EM_with_conditions': 0.43554240565471275, 'F1': 0.601982203554474, 'F1_with_conditions': 0.5472815525825402}, 'conditional': {'EM': 0.5927021743921267, 'EM_with_conditions': 0.2776069897035541, 'F1': 0.6277507842427831, 'F1_with_conditions': 0.2986483892050602}} 
 能够稳定达到这个结果
+metric: {'total': {'EM': 0.54840247035789, 'EM_with_conditions': 0.453358083312061, 'F1': 0.61920261146669, 'F1_with_conditions': 0.5207594527774095}, 'yesno': {'EM': 0.6508976979902668, 'EM_with_conditions': 0.4940555739785405, 'F1': 0.6508976979902668, 'F1_with_conditions': 0.4940555739785405}, 'extractive': {'EM': 0.42356510343273845, 'EM_with_conditions': 0.3871648958203604, 'F1': 0.5812060426203008, 'F1_with_conditions': 0.5372382575205504}, 'conditional': {'EM': 0.5766817039794546, 'EM_with_conditions': 0.25158968397725057, 'F1': 0.6139963224498994, 'F1_with_conditions': 0.2754452605474369}} 
+
 
 原始文档，无pretraining，无cl，无早停，有curriculum learning
